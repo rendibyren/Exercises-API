@@ -8,7 +8,7 @@ dotenv.config();
 // Import Routes
 const exerciseRoutes = require('./routes/exerciseRoutes');
 const workoutLogRoutes = require('./routes/workoutLogRoutes');
-const authRoutes = require('./routes/authRoutes');
+const authRoutes = require('./routes/authRoutes')
 
 const app = express();
 
@@ -31,7 +31,14 @@ app.use('/api/logs', workoutLogRoutes);
 
 // 5. Jalankan Server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(` Server lari di port ${PORT}`);
-    console.log(` Auth API: http://localhost:${PORT}/api/auth`);
-});
+
+// Hanya jalankan app.listen jika TIDAK di lingkungan produksi (Vercel)
+// Ini supaya kamu tetap bisa running 'npm run dev' di laptop (localhost)
+if (process.env.NODE_ENV !== 'production') {
+    app.listen(PORT, () => {
+        console.log(`Server lari di port ${PORT}`);
+    });
+}
+
+// WAJIB ADA: Export app agar bisa dibaca oleh Vercel
+module.exports = app;
