@@ -12,50 +12,50 @@ const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
-// 2. Middleware
+// 2. Middleware Dasar
 app.use(express.json());
 app.use('/images', express.static('public/uploads'));
 
-// 3. Koneksi ke MongoDB Atlas (OPTIMASI SERVERLESS)
+// 3. Fungsi Koneksi MongoDB dengan Mekanisme Caching (Standar Serverless)
 const connectDB = async () => {
-    try {
-        // Pengecekan koneksi: Jangan bikin koneksi baru kalau sudah ada yang aktif
-        if (mongoose.connection.readyState >= 1) {
-            console.log(' Menggunakan koneksi database yang sudah ada (Pool).');
-            return;
-        }
-
-        console.log(' Mencoba menghubungkan ke MongoDB Atlas...');
-
-        // Cukup batasi waktu tunggunya saja (5 detik), biarkan buffering otomatis menyala
-        await mongoose.connect(process.env.MONGO_URI, {
-            serverSelectionTimeoutMS: 5000
-        });
-
-        console.log(' Berhasil terhubung ke MongoDB Atlas!');
-    } catch (err) {
-        console.error(' Gagal koneksi ke database:', err.message);
+    // Jika koneksi sudah ada atau sedang menghubungkan, gunakan yang sudah ada
+    if (mongoose.connection.readyState >= 1) {
+        return;
     }
+
+    console.log('--- Membuka koneksi baru ke MongoDB Atlas ---');
+    await mongoose.connect(process.env.MONGO_URI, {
+        serverSelectionTimeoutMS: 8000, // Memberikan waktu 8 detik untuk jabat tangan jaringan
+    });
 };
 
-// Panggil fungsi koneksi
-connectDB();
+// 4. Middleware Kunci: Memaksa Vercel menunggu koneksi DB selesai sebelum masuk ke rute API
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+        next();
+    } catch (err) {
+        console.error('Koneksi Serverless gagal ditunggu:', err.message);
+        res.status(500).json({
+            message: "Gagal terhubung ke database cloud.",
+            error: err.message
+        });
+    }
+});
 
-// 4. Routing
+// 5. Routing
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/logs', workoutLogRoutes);
 
-// 5. Jalankan Server
+// 6. Jalankan Server Lokal
 const PORT = process.env.PORT || 3000;
 
-// Hanya jalankan app.listen jika TIDAK di lingkungan produksi (Vercel)
-// Ini supaya kamu tetap bisa running 'npm run dev' di laptop (localhost)
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
         console.log(` Server lari di port ${PORT}`);
     });
 }
 
-// WAJIB ADA: Export app agar bisa dibaca oleh Vercel
+// WAJIB ADA: Export app untuk Vercel
 module.exports = app;
