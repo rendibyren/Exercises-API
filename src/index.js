@@ -9,6 +9,8 @@ dotenv.config();
 const exerciseRoutes = require('./routes/exerciseRoutes');
 const workoutLogRoutes = require('./routes/workoutLogRoutes');
 const authRoutes = require('./routes/authRoutes');
+const equipmentRoutes = require('./routes/equipmentRoutes'); // BARU: Import Rute Equipment
+const muscleRoutes = require('./routes/muscleRoutes');       // BARU: Import Rute Muscle
 
 const app = express();
 
@@ -47,6 +49,8 @@ app.use(async (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/logs', workoutLogRoutes);
+app.use('/api/equipments', equipmentRoutes); // BARU: Daftarkan Rute Master Alat
+app.use('/api/muscles', muscleRoutes);       // BARU: Daftarkan Rute Master Otot
 
 // 6. Jalankan Server Lokal
 const PORT = process.env.PORT || 3000;

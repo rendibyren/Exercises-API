@@ -1,6 +1,6 @@
 const Exercise = require('../models/Exercise');
 
-// 1. GET ALL (Mengambil daftar latihan dengan Paging, Sort Nama A-Z, & Proteksi Halaman Kosong)
+// 1. GET ALL (Mengambil daftar latihan dengan Paging, Sort Nama A-Z, & Populate Relasi)
 exports.getAllExercises = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -10,27 +10,29 @@ exports.getAllExercises = async (req, res) => {
         const totalData = await Exercise.countDocuments();
         const totalPages = Math.ceil(totalData / limit);
 
-        // Jika user meminta halaman yang melebihi total halaman yang ada
         if (page > totalPages && totalData > 0) {
             return res.status(404).json({
                 currentPage: page,
                 totalPages: totalPages,
                 totalExercises: totalData,
                 message: `Halaman ${page} tidak ditemukan. Data hanya tersedia sampai halaman ${totalPages}.`,
-                detail: [] // SUDAH DISERASIKAN
+                detail: []
             });
         }
 
+        // Ambil data dengan mem-populate tabel Equipment dan Muscle
         const data = await Exercise.find()
             .sort({ name: 1 })
             .skip(skip)
-            .limit(limit);
+            .limit(limit)
+            .populate('equipment', 'name') // Mengambil nama alat saja
+            .populate('muscles.muscleId', 'name'); // Mengambil nama otot saja
 
         res.status(200).json({
             currentPage: page,
             totalPages: totalPages,
             totalExercises: totalData,
-            detail: data // UBAH 'data' MENJADI 'detail' AGAR SINKRON DENGAN WORKOUT LOG
+            detail: data
         });
 
     } catch (error) {
@@ -39,17 +41,23 @@ exports.getAllExercises = async (req, res) => {
     }
 };
 
-// 2. POST (Membuat latihan baru)
+// 2. POST (Membuat latihan baru dengan skema relasi)
 exports.createExercise = async (req, res) => {
     try {
         if (!req.body || !req.body.name || req.body.name.trim() === "") {
             return res.status(400).json({ message: "Nama latihan wajib diisi." });
         }
+        if (!req.body.equipment) {
+            return res.status(400).json({ message: "ID Equipment wajib diisi." });
+        }
+        if (!req.body.muscles || !Array.isArray(req.body.muscles) || req.body.muscles.length === 0) {
+            return res.status(400).json({ message: "Data otot (muscles) wajib diisi dalam bentuk array." });
+        }
 
         const newExercise = new Exercise({
             name: req.body.name,
-            muscle: req.body.muscle,
-            equipment: req.body.equipment,
+            muscles: req.body.muscles,      // Menangkap array [{ muscleId, percentage }]
+            equipment: req.body.equipment,  // Menangkap ID Equipment
             instructions: req.body.instructions,
             videoUrl: req.body.videoUrl,
             image: req.body.image,
@@ -64,12 +72,13 @@ exports.createExercise = async (req, res) => {
     }
 };
 
-// 3. PUT (Partial Update - Hanya mengupdate field yang dikirim saja)
+// 3. PUT (Partial Update)
 exports.updateExercise = async (req, res) => {
     try {
         const id = req.params.id;
         const updateFields = {};
-        const allowedFields = ['name', 'muscle', 'equipment', 'instructions', 'videoUrl', 'image'];
+        // Sesuaikan field target dengan skema baru ('muscles' bukan 'muscle')
+        const allowedFields = ['name', 'muscles', 'equipment', 'instructions', 'videoUrl', 'image'];
 
         allowedFields.forEach(field => {
             if (req.body[field] !== undefined) {

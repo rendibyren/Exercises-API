@@ -1,31 +1,39 @@
 const mongoose = require('mongoose');
 
-const exerciseSchema = new mongoose.Schema({
+const ExerciseSchema = new mongoose.Schema({
     name: {
         type: String,
+        required: true,
+        trim: true
+    },
+    // REFERENSI KE TABEL MUSCLE + PERSENTASE
+    muscles: [
+        {
+            muscleId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Muscle',
+                required: true
+            },
+            percentage: {
+                type: Number,
+                required: true
+            }
+        }
+    ],
+    // REFERENSI KE TABEL EQUIPMENT (Cukup ambil ID-nya saja)
+    equipment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Equipment',
         required: true
     },
-    muscle: {
-        type: String,
-        required: true
-    }, // Contoh: Chest, Back, Legs
-    equipment: {
-        type: String,
-        required: true
-    }, // Contoh: Barbell, Dumbbell, Bodyweight
-    instructions: {
-        type: String
-    }, // Penjelasan cara melakukan gerakan
-    videoUrl: {
-        type: String
-    }, // Link video (YouTube/dll)
-    image: {
-        type: String
-    }, // Nama file atau link gambar
+    instructions: { type: String },
+    videoUrl: { type: String },
+    image: { type: String },
     user: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'User'
-    } // Opsional: Untuk menandai siapa yang menambahkan
+        ref: 'User',
+        default: null
+    }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Exercise', exerciseSchema);
+module.exports = mongoose.model('Exercise', ExerciseSchema);
