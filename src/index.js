@@ -27,10 +27,9 @@ const connectDB = async () => {
 
         console.log(' Mencoba menghubungkan ke MongoDB Atlas...');
 
-        // Optimasi opsi koneksi untuk lingkungan Vercel
+        // Cukup batasi waktu tunggunya saja (5 detik), biarkan buffering otomatis menyala
         await mongoose.connect(process.env.MONGO_URI, {
-            serverSelectionTimeoutMS: 5000, // Timeout dalam 5 detik
-            bufferCommands: false           // Matikan buffering agar tidak macet 10 detik
+            serverSelectionTimeoutMS: 5000
         });
 
         console.log(' Berhasil terhubung ke MongoDB Atlas!');
