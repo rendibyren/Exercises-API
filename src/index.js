@@ -8,7 +8,7 @@ dotenv.config();
 // Import Routes
 const exerciseRoutes = require('./routes/exerciseRoutes');
 const workoutLogRoutes = require('./routes/workoutLogRoutes');
-const authRoutes = require('./routes/authRoutes')
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -16,16 +16,34 @@ const app = express();
 app.use(express.json());
 app.use('/images', express.static('public/uploads'));
 
-// 3. Koneksi ke MongoDB Atlas
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log(' Terhubung ke MongoDB Atlas!'))
-    .catch((err) => {
-        console.error(' Gagal koneksi ke database:');
-        console.error(err.message);
-    });
+// 3. Koneksi ke MongoDB Atlas (OPTIMASI SERVERLESS)
+const connectDB = async () => {
+    try {
+        // Pengecekan koneksi: Jangan bikin koneksi baru kalau sudah ada yang aktif
+        if (mongoose.connection.readyState >= 1) {
+            console.log(' Menggunakan koneksi database yang sudah ada (Pool).');
+            return;
+        }
+
+        console.log(' Mencoba menghubungkan ke MongoDB Atlas...');
+
+        // Optimasi opsi koneksi untuk lingkungan Vercel
+        await mongoose.connect(process.env.MONGO_URI, {
+            serverSelectionTimeoutMS: 5000, // Timeout dalam 5 detik
+            bufferCommands: false           // Matikan buffering agar tidak macet 10 detik
+        });
+
+        console.log(' Berhasil terhubung ke MongoDB Atlas!');
+    } catch (err) {
+        console.error(' Gagal koneksi ke database:', err.message);
+    }
+};
+
+// Panggil fungsi koneksi
+connectDB();
 
 // 4. Routing
-app.use('/api/auth', authRoutes); // Pindahkan ke atas agar rapi
+app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/logs', workoutLogRoutes);
 
@@ -36,7 +54,7 @@ const PORT = process.env.PORT || 3000;
 // Ini supaya kamu tetap bisa running 'npm run dev' di laptop (localhost)
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(`Server lari di port ${PORT}`);
+        console.log(` Server lari di port ${PORT}`);
     });
 }
 
