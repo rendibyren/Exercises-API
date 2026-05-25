@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 
+// Paksa panggil skema asli Exercise murni agar tipenya terikat sempurna sebelum dikompilasi
+require('./Exercise');
+
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -18,11 +21,10 @@ const WorkoutLogSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    // Deklarasikan array exercises secara lugas dan bersih agar Mongoose tidak bingung memetakan path relasinya
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise', // WAJIB SAMA PERSIS dengan string ekspor di model Exercise.js
+            ref: 'Exercise',
             required: true
         },
         sets: [{
@@ -32,4 +34,4 @@ const WorkoutLogSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
-module.exports = mongoose.model('WorkoutLog', WorkoutLogSchema);
+module.exports = mongoose.models.WorkoutLog || mongoose.model('WorkoutLog', WorkoutLogSchema);

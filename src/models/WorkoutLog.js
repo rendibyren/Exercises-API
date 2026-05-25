@@ -1,14 +1,7 @@
 const mongoose = require('mongoose');
 
-// =========================================================================
-// SAFE REGISTRATION FOR VERCEL SERVERLESS
-// =========================================================================
-// Jika karena satu hal model 'Exercise' belum dimuat oleh container Vercel,
-// kita buatkan 'placeholder schema' kosong agar Mongoose tidak memicu MissingSchemaError.
-if (!mongoose.models.Exercise) {
-    mongoose.model('Exercise', new mongoose.Schema({}, { strict: false }));
-}
-// =========================================================================
+// Paksa panggil skema asli Exercise murni agar tipenya terikat sempurna sebelum dikompilasi
+require('./Exercise');
 
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
@@ -31,7 +24,7 @@ const WorkoutLogSchema = new mongoose.Schema({
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise', // Merujuk ke registrasi aman di atas
+            ref: 'Exercise',
             required: true
         },
         sets: [{

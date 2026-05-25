@@ -11,14 +11,12 @@ exports.createLog = async (req, res) => {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan/exercise." });
         }
 
-        // Amankan mapping tanpa menggunakan kata 'new' yang memicu BSONVersionError
         const formattedExercises = exercises.map(item => {
             if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
                 throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
             }
 
             return {
-                // Gunakan casting string biasa, Mongoose akan otomatis mengubahnya ke ObjectId murni di tingkat skema
                 exerciseId: item.exerciseId,
                 sets: item.sets ? item.sets.map(set => ({
                     reps: parseInt(set.reps) || 0,
@@ -59,9 +57,9 @@ exports.getAllLogs = async (req, res) => {
             .sort({ createdAt: -1 });
 
         const formattedLogs = logs.map(log => {
-            // Pelindung ekstra: pastikan log.exercises ada isinya
             const detailRelasi = log.exercises ? log.exercises.map(item => {
-                if (item.exerciseId && typeof item.exerciseId === 'object') {
+                // Perbaikan Kunci: Cek apakah field nama hasil populate berhasil keluar
+                if (item.exerciseId && item.exerciseId.name) {
                     return {
                         _id: item.exerciseId._id,
                         name: item.exerciseId.name,
@@ -121,7 +119,7 @@ exports.getLogById = async (req, res) => {
         }
 
         const detailRelasi = log.exercises ? log.exercises.map(item => {
-            if (item.exerciseId && typeof item.exerciseId === 'object') {
+            if (item.exerciseId && item.exerciseId.name) {
                 return {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
@@ -181,7 +179,7 @@ exports.completeWorkoutLog = async (req, res) => {
         }
 
         const detailRelasi = updated.exercises ? updated.exercises.map(item => {
-            if (item.exerciseId && typeof item.exerciseId === 'object') {
+            if (item.exerciseId && item.exerciseId.name) {
                 return {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
@@ -241,7 +239,7 @@ exports.updateLog = async (req, res) => {
                     throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
                 }
                 return {
-                    exerciseId: item.exerciseId, // Serahkan casting string ke Mongoose secara alami
+                    exerciseId: item.exerciseId,
                     sets: item.sets ? item.sets.map(set => ({
                         reps: parseInt(set.reps) || 0,
                         weight: parseFloat(set.weight) || 0
@@ -267,7 +265,7 @@ exports.updateLog = async (req, res) => {
         }
 
         const detailRelasi = updated.exercises ? updated.exercises.map(item => {
-            if (item.exerciseId && typeof item.exerciseId === 'object') {
+            if (item.exerciseId && item.exerciseId.name) {
                 return {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
