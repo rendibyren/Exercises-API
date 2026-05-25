@@ -161,7 +161,61 @@ exports.updateLog = async (req, res) => {
         res.status(500).json({ message: "Terjadi kesalahan server saat update riwayat.", error: error.message });
     }
 };
+// FUNCTION KHUSUS: Mengubah isCompleted menjadi true
+exports.completeWorkoutLog = async (req, res) => {
+    try {
+        const id = req.params.id;
 
+        // Kunci update hanya untuk field isCompleted saja menjadi true
+        const updated = await WorkoutLog.findOneAndUpdate(
+            { _id: id, user: req.user.id },
+            { $set: { isCompleted: true } },
+            { new: true }
+        ).populate({
+            path: 'exercises.exerciseId',
+            populate: [
+                { path: 'equipment', select: 'name' },
+                { path: 'muscles.muscleId', select: 'name' }
+            ]
+        });
+
+        if (!updated) {
+            return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
+        }
+
+        // Format ulang response agar field detailnya ikut keluar jika datanya valid
+        const detailRelasi = updated.exercises.map(item => {
+            if (item.exerciseId) {
+                return {
+                    _id: item.exerciseId._id,
+                    name: item.exerciseId.name,
+                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
+                    muscles: item.exerciseId.muscles.map(m => ({
+                        name: m.muscleId ? m.muscleId.name : null,
+                        percentage: m.percentage
+                    })),
+                    sets: item.sets
+                };
+            }
+            return null;
+        }).filter(item => item !== null);
+
+        res.status(200).json({
+            message: "Sesi latihan berhasil diselesaikan!",
+            data: {
+                _id: updated._id,
+                workoutName: updated.workoutName,
+                duration: updated.duration,
+                isCompleted: updated.isCompleted,
+                createdAt: updated.createdAt,
+                detail: detailRelasi
+            }
+        });
+    } catch (error) {
+        console.error("DEBUG COMPLETE LOG ERROR:", error);
+        res.status(500).json({ message: "Terjadi kesalahan server saat menyelesaikan latihan.", error: error.message });
+    }
+};
 // 5. DELETE: Menghapus Riwayat Latihan
 exports.deleteLog = async (req, res) => {
     try {
