@@ -5,12 +5,24 @@ const mongoose = require('mongoose');
 // 1. Konfigurasi dotenv paling atas
 dotenv.config();
 
+// =========================================================================
+// REGISTRASI MASAL MODEL MONGOOSE (SOLUSI MUTLAK UNTUK SERVERLESS POPULATE)
+// =========================================================================
+// Dengan me-require semua skema di file entri utama, Mongoose akan mengunci
+// blueprint model ke memori global Vercel sebelum request API diproses.
+require('./models/User');
+require('./models/Muscle');
+require('./models/Equipment');
+require('./models/Exercise');
+require('./models/WorkoutLog');
+// =========================================================================
+
 // Import Routes
 const exerciseRoutes = require('./routes/exerciseRoutes');
 const workoutLogRoutes = require('./routes/workoutLogRoutes');
 const authRoutes = require('./routes/authRoutes');
-const equipmentRoutes = require('./routes/equipmentRoutes'); // BARU: Import Rute Equipment
-const muscleRoutes = require('./routes/muscleRoutes');       // BARU: Import Rute Muscle
+const equipmentRoutes = require('./routes/equipmentRoutes'); // Import Rute Equipment
+const muscleRoutes = require('./routes/muscleRoutes');       // Import Rute Muscle
 
 const app = express();
 
@@ -49,8 +61,8 @@ app.use(async (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/logs', workoutLogRoutes);
-app.use('/api/equipments', equipmentRoutes); // BARU: Daftarkan Rute Master Alat
-app.use('/api/muscles', muscleRoutes);       // BARU: Daftarkan Rute Master Otot
+app.use('/api/equipments', equipmentRoutes); // Daftarkan Rute Master Alat
+app.use('/api/muscles', muscleRoutes);       // Daftarkan Rute Master Otot
 
 // 6. Jalankan Server Lokal
 const PORT = process.env.PORT || 3000;
