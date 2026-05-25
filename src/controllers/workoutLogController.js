@@ -130,84 +130,18 @@ exports.getLogById = async (req, res) => {
 
 // 4. PUT: Update Log
 // PUT: /api/logs/:id (Rute umum untuk edit field nama, durasi, atau set latihan)
-exports.updateLog = async (req, res) => {
-    try {
-        const id = req.params.id;
-        const updateFields = {};
-
-        // Kunci agar 'isCompleted' tidak bisa dimanipulasi lewat rute umum ini
-        const allowedFields = ['workoutName', 'duration', 'exercises'];
-
-        allowedFields.forEach(field => {
-            if (req.body[field] !== undefined) {
-                updateFields[field] = req.body[field];
-            }
-        });
-
-        if (Object.keys(updateFields).length === 0) {
-            return res.status(400).json({ message: "Tidak ada data riwayat yang diubah." });
-        }
-
-        const updated = await WorkoutLog.findOneAndUpdate(
-            { _id: id, user: req.user.id },
-            { $set: updateFields },
-            { new: true, runValidators: true }
-        ).populate({
-            path: 'exercises.exercise', // Menggunakan 'exercise'
-            populate: [
-                { path: 'equipment', select: 'name' },
-                { path: 'muscles.muscleId', select: 'name' }
-            ]
-        });
-
-        if (!updated) {
-            return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
-        }
-
-        const detailRelasi = updated.exercises.map(item => {
-            if (item.exercise) {
-                return {
-                    _id: item.exercise._id,
-                    name: item.exercise.name,
-                    equipment: item.exercise.equipment ? item.exercise.equipment.name : null,
-                    muscles: item.exercise.muscles ? item.exercise.muscles.map(m => ({
-                        name: m.muscleId ? m.muscleId.name : null,
-                        percentage: m.percentage
-                    })) : [],
-                    sets: item.sets
-                };
-            }
-            return null;
-        }).filter(item => item !== null);
-
-        res.status(200).json({
-            _id: updated._id,
-            user: updated.user,
-            workoutName: updated.workoutName,
-            duration: updated.duration,
-            isCompleted: updated.isCompleted,
-            createdAt: updated.createdAt,
-            updatedAt: updated.updatedAt,
-            detail: detailRelasi
-        });
-    } catch (error) {
-        console.error("DEBUG PUT LOG ERROR:", error);
-        res.status(500).json({ message: "Terjadi kesalahan server saat update riwayat.", error: error.message });
-    }
-};
-// FUNCTION KHUSUS: Mengubah isCompleted menjadi true
-// PUT: /api/logs/complete/:id (Khusus mengubah status selesai)
+// PUT: /api/logs/complete/:id
 exports.completeWorkoutLog = async (req, res) => {
     try {
         const id = req.params.id;
 
-        // Langsung kunci, hanya ubah field isCompleted menjadi true
+        // Kembalikan path ke 'exercises.exerciseId' sesuai skema asli kamu
         const updated = await WorkoutLog.findOneAndUpdate(
             { _id: id, user: req.user.id },
             { $set: { isCompleted: true } },
             { new: true }
         ).populate({
-            path: 'exercises.exercise', // Sesuai nama field di DB kamu: 'exercise'
+            path: 'exercises.exerciseId',
             populate: [
                 { path: 'equipment', select: 'name' },
                 { path: 'muscles.muscleId', select: 'name' }
@@ -218,14 +152,14 @@ exports.completeWorkoutLog = async (req, res) => {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        // Mapping detail relasi (Sudah diperbaiki ke item.exercise)
+        // Amankan mapping dengan mengecek item.exerciseId
         const detailRelasi = updated.exercises.map(item => {
-            if (item.exercise) {
+            if (item.exerciseId) {
                 return {
-                    _id: item.exercise._id,
-                    name: item.exercise.name,
-                    equipment: item.exercise.equipment ? item.exercise.equipment.name : null,
-                    muscles: item.exercise.muscles ? item.exercise.muscles.map(m => ({
+                    _id: item.exerciseId._id,
+                    name: item.exerciseId.name,
+                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
+                    muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
                         name: m.muscleId ? m.muscleId.name : null,
                         percentage: m.percentage
                     })) : [],
@@ -249,6 +183,70 @@ exports.completeWorkoutLog = async (req, res) => {
     } catch (error) {
         console.error("DEBUG COMPLETE LOG ERROR:", error);
         res.status(500).json({ message: "Terjadi kesalahan server saat menyelesaikan latihan.", error: error.message });
+    }
+};
+/// PUT: /api/logs/:id
+exports.updateLog = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const updateFields = {};
+        const allowedFields = ['workoutName', 'duration', 'exercises'];
+
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                updateFields[field] = req.body[field];
+            }
+        });
+
+        if (Object.keys(updateFields).length === 0) {
+            return res.status(400).json({ message: "Tidak ada data riwayat yang diubah." });
+        }
+
+        const updated = await WorkoutLog.findOneAndUpdate(
+            { _id: id, user: req.user.id },
+            { $set: updateFields },
+            { new: true, runValidators: true }
+        ).populate({
+            path: 'exercises.exerciseId', // Gunakan exerciseId
+            populate: [
+                { path: 'equipment', select: 'name' },
+                { path: 'muscles.muscleId', select: 'name' }
+            ]
+        });
+
+        if (!updated) {
+            return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
+        }
+
+        const detailRelasi = updated.exercises.map(item => {
+            if (item.exerciseId) {
+                return {
+                    _id: item.exerciseId._id,
+                    name: item.exerciseId.name,
+                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
+                    muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
+                        name: m.muscleId ? m.muscleId.name : null,
+                        percentage: m.percentage
+                    })) : [],
+                    sets: item.sets
+                };
+            }
+            return null;
+        }).filter(item => item !== null);
+
+        res.status(200).json({
+            _id: updated._id,
+            user: updated.user,
+            workoutName: updated.workoutName,
+            duration: updated.duration,
+            isCompleted: updated.isCompleted,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
+            detail: detailRelasi
+        });
+    } catch (error) {
+        console.error("DEBUG PUT LOG ERROR:", error);
+        res.status(500).json({ message: "Terjadi kesalahan server saat update riwayat.", error: error.message });
     }
 };
 // 5. DELETE: Menghapus Riwayat Latihan
