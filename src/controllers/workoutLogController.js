@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const WorkoutLog = require('../models/WorkoutLog');
+const Exercise = require('../models/Exercise');
 
 // 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
