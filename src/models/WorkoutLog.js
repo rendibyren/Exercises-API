@@ -11,23 +11,24 @@ const WorkoutLogSchema = new mongoose.Schema({
         default: 'Custom Workout'
     },
     duration: {
-        type: Number, // dalam satuan menit
+        type: Number,
         default: 0
+    },
+    isCompleted: { // Pastikan field ini ada di skema kamu
+        type: Boolean,
+        default: false
     },
     exercises: [
         {
             exerciseId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Exercise',
+                type: mongoose.Schema.Types.ObjectId, // WAJIB BERBENTUK OBJECTID
+                ref: 'Exercise', // WAJIB MERUJUK KE MODEL EXERCISE KAMU
                 required: true
-            },
-            name: { // TAMBAHKAN INI agar teks nama latihan bisa ikut disimpan/muncul murni
-                type: String
             },
             sets: [
                 {
                     reps: { type: Number, required: true },
-                    weight: { type: Number, default: 0 } // berat beban dalam kg
+                    weight: { type: Number, default: 0 }
                 }
             ]
         }
