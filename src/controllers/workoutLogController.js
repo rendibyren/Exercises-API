@@ -1,6 +1,6 @@
 const WorkoutLog = require('../models/WorkoutLog');
 
-// 1. POST (Simpan Log Latihan Baru)
+// 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
@@ -24,10 +24,9 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL (Ambil Riwayat Khusus User + Deep Populate Relasi Teranyar)
+// 2. GET ALL: Ambil Semua Riwayat Khusus User
 exports.getAllLogs = async (req, res) => {
     try {
-        // Melakukan Deep Populate sampai ke sub-tabel equipment dan muscles asli
         const logs = await WorkoutLog.find({ user: req.user.id })
             .populate({
                 path: 'exercises.exerciseId',
@@ -38,7 +37,6 @@ exports.getAllLogs = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        // Format ulang struktur agar rapi dibaca frontend React
         const formattedLogs = logs.map(log => {
             const detailRelasi = log.exercises.map(item => {
                 if (item.exerciseId) {
@@ -77,7 +75,60 @@ exports.getAllLogs = async (req, res) => {
     }
 };
 
-// 3. PUT (Partial Update Log)
+// 3. GET BY ID: Mengambil satu detail log berdasarkan ID
+exports.getLogById = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const log = await WorkoutLog.findOne({ _id: id, user: req.user.id })
+            .populate({
+                path: 'exercises.exerciseId',
+                populate: [
+                    { path: 'equipment', select: 'name' },
+                    { path: 'muscles.muscleId', select: 'name' }
+                ]
+            });
+
+        if (!log) {
+            return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
+        }
+
+        const detailRelasi = log.exercises.map(item => {
+            if (item.exerciseId) {
+                return {
+                    _id: item.exerciseId._id,
+                    name: item.exerciseId.name,
+                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
+                    muscles: item.exerciseId.muscles.map(m => ({
+                        name: m.muscleId ? m.muscleId.name : null,
+                        percentage: m.percentage
+                    })),
+                    instructions: item.exerciseId.instructions,
+                    videoUrl: item.exerciseId.videoUrl,
+                    image: item.exerciseId.image,
+                    sets: item.sets
+                };
+            }
+            return null;
+        }).filter(item => item !== null);
+
+        const formattedLog = {
+            _id: log._id,
+            user: log.user,
+            workoutName: log.workoutName,
+            duration: log.duration,
+            createdAt: log.createdAt,
+            updatedAt: log.updatedAt,
+            detail: detailRelasi
+        };
+
+        res.status(200).json(formattedLog);
+    } catch (error) {
+        console.error("DEBUG GET LOG BY ID ERROR:", error);
+        res.status(500).json({ message: "Terjadi kesalahan server saat mengambil detail riwayat.", error: error.message });
+    }
+};
+
+// 4. PUT: Update Log
 exports.updateLog = async (req, res) => {
     try {
         const id = req.params.id;
@@ -111,7 +162,7 @@ exports.updateLog = async (req, res) => {
     }
 };
 
-// 4. DELETE (Menghapus Riwayat Latihan)
+// 5. DELETE: Menghapus Riwayat Latihan
 exports.deleteLog = async (req, res) => {
     try {
         const id = req.params.id;
