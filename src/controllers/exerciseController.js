@@ -1,6 +1,7 @@
+const mongoose = require('mongoose'); // BARU: Wajib di-import untuk validasi ObjectId
 const Exercise = require('../models/Exercise');
 
-// 1. GET ALL (Mengambil daftar latihan dengan Paging, Sort Nama A-Z, & Populate Relasi)
+// 1. GET ALL (Versi Aman: Kebal dari crash akibat data lama bertipe String)
 exports.getAllExercises = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -20,18 +21,34 @@ exports.getAllExercises = async (req, res) => {
             });
         }
 
-        const data = await Exercise.find()
+        // Ambil data mentah dari database terlebih dahulu
+        const rawData = await Exercise.find()
             .sort({ name: 1 })
             .skip(skip)
-            .limit(limit)
-            .populate('equipment', 'name')
-            .populate('muscles.muscleId', 'name');
+            .limit(limit);
+
+        // Lakukan skenasi populate secara asinkronus dan aman per item data
+        const formattedData = await Promise.all(rawData.map(async (exercise) => {
+            // Cek apakah kolom equipment berbentuk ObjectId yang valid
+            const isEquipmentValid = mongoose.Types.ObjectId.isValid(exercise.equipment);
+
+            // Cek apakah seluruh item di dalam array muscles memiliki muscleId berbentuk ObjectId yang valid
+            const hasValidMuscles = exercise.muscles && exercise.muscles.length > 0 &&
+                exercise.muscles.every(m => mongoose.Types.ObjectId.isValid(m.muscleId));
+
+            // Buat query dinamis berdasarkan validitas data di atas
+            let query = Exercise.findById(exercise._id);
+            if (isEquipmentValid) query = query.populate('equipment', 'name');
+            if (hasValidMuscles) query = query.populate('muscles.muscleId', 'name');
+
+            return await query;
+        }));
 
         res.status(200).json({
             currentPage: page,
             totalPages: totalPages,
             totalExercises: totalData,
-            detail: data
+            detail: formattedData
         });
 
     } catch (error) {
@@ -40,18 +57,32 @@ exports.getAllExercises = async (req, res) => {
     }
 };
 
-// 2. GET BY ID (BARU: Mengambil detail satu latihan berdasarkan ID + Populate Lengkap)
+// 2. GET BY ID (Versi Aman: Proteksi dari format ID URL salah & kebal data String lama)
 exports.getExerciseById = async (req, res) => {
     try {
         const id = req.params.id;
-        const data = await Exercise.findById(id)
-            .populate('equipment', 'name')
-            .populate('muscles.muscleId', 'name');
 
-        if (!data) {
+        // Validasi awal: Apakah parameter ID di URL sudah benar format ObjectId-nya?
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID latihan tidak valid." });
+        }
+
+        const exercise = await Exercise.findById(id);
+
+        if (!exercise) {
             return res.status(404).json({ message: "Latihan tidak ditemukan." });
         }
 
+        // Validasi internal data sebelum melakukan eksekusi .populate()
+        const isEquipmentValid = mongoose.Types.ObjectId.isValid(exercise.equipment);
+        const hasValidMuscles = exercise.muscles && exercise.muscles.length > 0 &&
+            exercise.muscles.every(m => mongoose.Types.ObjectId.isValid(m.muscleId));
+
+        let query = Exercise.findById(id);
+        if (isEquipmentValid) query = query.populate('equipment', 'name');
+        if (hasValidMuscles) query = query.populate('muscles.muscleId', 'name');
+
+        const data = await query;
         res.status(200).json(data);
     } catch (error) {
         console.error("DEBUG GET BY ID ERROR:", error);
@@ -90,10 +121,15 @@ exports.createExercise = async (req, res) => {
     }
 };
 
-// 4. PUT (Partial Update)
+// 4. PUT (Partial Update - Mengubah field secara fleksibel)
 exports.updateExercise = async (req, res) => {
     try {
         const id = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID latihan tidak valid." });
+        }
+
         const updateFields = {};
         const allowedFields = ['name', 'muscles', 'equipment', 'instructions', 'videoUrl', 'image'];
 
@@ -128,6 +164,11 @@ exports.updateExercise = async (req, res) => {
 exports.deleteExercise = async (req, res) => {
     try {
         const id = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID latihan tidak valid." });
+        }
+
         const deleted = await Exercise.findByIdAndDelete(id);
 
         if (!deleted) {
