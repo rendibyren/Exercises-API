@@ -1,7 +1,7 @@
+const mongoose = require('mongoose'); // BARU & WAJIB: Untuk casting String ID menjadi ObjectId murni
 const WorkoutLog = require('../models/WorkoutLog');
 
-// 1. POST: Simpan Log Latihan Baru
-// 1. POST (Simpan Log Latihan Baru - Versi Fix Populate)
+// 1. POST: Simpan Log Latihan Baru (Versi FIX AKAN SELALU BISA DI-POPULATE)
 exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
@@ -10,10 +10,15 @@ exports.createLog = async (req, res) => {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan/exercise." });
         }
 
-        // BARU & KRUSIAL: Memastikan data exercises dipetakan dengan benar sesuai nama field skema (exerciseId)
+        // SOLUSI UTAMA: Paksa casting string ID dari Postman menjadi Mongoose ObjectId murni
         const formattedExercises = exercises.map(item => {
+            // Validasi jika user mengirim format ID yang ngawur/rusak di Postman
+            if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
+                throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
+            }
+
             return {
-                exerciseId: item.exerciseId, // Memastikan key ini masuk dengan tepat ke Mongoose
+                exerciseId: new mongoose.Types.ObjectId(item.exerciseId), // Paksa bungkus ke ObjectId
                 sets: item.sets ? item.sets.map(set => ({
                     reps: parseInt(set.reps) || 0,
                     weight: parseFloat(set.weight) || 0
@@ -25,18 +30,21 @@ exports.createLog = async (req, res) => {
             user: req.user.id,
             workoutName: workoutName || "Custom Workout",
             duration: duration || 0,
-            exercises: formattedExercises // Masukkan data yang sudah diformat bersih
+            exercises: formattedExercises
         });
 
         const savedLog = await newLog.save();
         res.status(201).json(savedLog);
     } catch (error) {
         console.error("DEBUG POST LOG ERROR:", error);
-        res.status(500).json({ message: "Gagal menyimpan log latihan.", error: error.message });
+        res.status(error.message.includes('Format exerciseId') ? 400 : 500).json({
+            message: "Gagal menyimpan log latihan.",
+            error: error.message
+        });
     }
 };
 
-// 2. GET ALL: Ambil Semua Riwayat Khusus User
+// 2. GET ALL: Ambil Semua Riwayat Khusus User + Render Detail Relasi Lengkap
 exports.getAllLogs = async (req, res) => {
     try {
         const logs = await WorkoutLog.find({ user: req.user.id })
@@ -56,10 +64,10 @@ exports.getAllLogs = async (req, res) => {
                         _id: item.exerciseId._id,
                         name: item.exerciseId.name,
                         equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                        muscles: item.exerciseId.muscles.map(m => ({
+                        muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
                             name: m.muscleId ? m.muscleId.name : null,
                             percentage: m.percentage
-                        })),
+                        })) : [],
                         instructions: item.exerciseId.instructions,
                         videoUrl: item.exerciseId.videoUrl,
                         image: item.exerciseId.image,
@@ -74,6 +82,7 @@ exports.getAllLogs = async (req, res) => {
                 user: log.user,
                 workoutName: log.workoutName,
                 duration: log.duration,
+                isCompleted: log.isCompleted || false,
                 createdAt: log.createdAt,
                 updatedAt: log.updatedAt,
                 detail: detailRelasi
@@ -91,6 +100,11 @@ exports.getAllLogs = async (req, res) => {
 exports.getLogById = async (req, res) => {
     try {
         const id = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID log tidak valid." });
+        }
+
         const log = await WorkoutLog.findOne({ _id: id, user: req.user.id })
             .populate({
                 path: 'exercises.exerciseId',
@@ -110,10 +124,10 @@ exports.getLogById = async (req, res) => {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
                     equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                    muscles: item.exerciseId.muscles.map(m => ({
+                    muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
                         name: m.muscleId ? m.muscleId.name : null,
                         percentage: m.percentage
-                    })),
+                    })) : [],
                     instructions: item.exerciseId.instructions,
                     videoUrl: item.exerciseId.videoUrl,
                     image: item.exerciseId.image,
@@ -123,31 +137,31 @@ exports.getLogById = async (req, res) => {
             return null;
         }).filter(item => item !== null);
 
-        const formattedLog = {
+        res.status(200).json({
             _id: log._id,
             user: log.user,
             workoutName: log.workoutName,
             duration: log.duration,
+            isCompleted: log.isCompleted || false,
             createdAt: log.createdAt,
             updatedAt: log.updatedAt,
             detail: detailRelasi
-        };
-
-        res.status(200).json(formattedLog);
+        });
     } catch (error) {
         console.error("DEBUG GET LOG BY ID ERROR:", error);
         res.status(500).json({ message: "Terjadi kesalahan server saat mengambil detail riwayat.", error: error.message });
     }
 };
 
-// 4. PUT: Update Log
-// PUT: /api/logs/:id (Rute umum untuk edit field nama, durasi, atau set latihan)
-// PUT: /api/logs/complete/:id
+// 4. PUT KHUSUS: Mengubah status isCompleted menjadi True Saja
 exports.completeWorkoutLog = async (req, res) => {
     try {
         const id = req.params.id;
 
-        // Kembalikan path ke 'exercises.exerciseId' sesuai skema asli kamu
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID log tidak valid." });
+        }
+
         const updated = await WorkoutLog.findOneAndUpdate(
             { _id: id, user: req.user.id },
             { $set: { isCompleted: true } },
@@ -164,7 +178,6 @@ exports.completeWorkoutLog = async (req, res) => {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        // Amankan mapping dengan mengecek item.exerciseId
         const detailRelasi = updated.exercises.map(item => {
             if (item.exerciseId) {
                 return {
@@ -197,10 +210,16 @@ exports.completeWorkoutLog = async (req, res) => {
         res.status(500).json({ message: "Terjadi kesalahan server saat menyelesaikan latihan.", error: error.message });
     }
 };
-/// PUT: /api/logs/:id
+
+// 5. PUT UMUM: Update data field nama, durasi, atau array latihan harian
 exports.updateLog = async (req, res) => {
     try {
         const id = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID log tidak valid." });
+        }
+
         const updateFields = {};
         const allowedFields = ['workoutName', 'duration', 'exercises'];
 
@@ -214,12 +233,28 @@ exports.updateLog = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data riwayat yang diubah." });
         }
 
+        // Jika user melakukan update pada data latihan, pastikan di-cast kembali menjadi ObjectId murni
+        if (updateFields.exercises && Array.isArray(updateFields.exercises)) {
+            updateFields.exercises = updateFields.exercises.map(item => {
+                if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
+                    throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
+                }
+                return {
+                    exerciseId: new mongoose.Types.ObjectId(item.exerciseId),
+                    sets: item.sets ? item.sets.map(set => ({
+                        reps: parseInt(set.reps) || 0,
+                        weight: parseFloat(set.weight) || 0
+                    })) : []
+                };
+            });
+        }
+
         const updated = await WorkoutLog.findOneAndUpdate(
             { _id: id, user: req.user.id },
             { $set: updateFields },
             { new: true, runValidators: true }
         ).populate({
-            path: 'exercises.exerciseId', // Gunakan exerciseId
+            path: 'exercises.exerciseId',
             populate: [
                 { path: 'equipment', select: 'name' },
                 { path: 'muscles.muscleId', select: 'name' }
@@ -258,13 +293,22 @@ exports.updateLog = async (req, res) => {
         });
     } catch (error) {
         console.error("DEBUG PUT LOG ERROR:", error);
-        res.status(500).json({ message: "Terjadi kesalahan server saat update riwayat.", error: error.message });
+        res.status(error.message?.includes('Format exerciseId') ? 400 : 500).json({
+            message: "Terjadi kesalahan server saat update riwayat.",
+            error: error.message
+        });
     }
 };
-// 5. DELETE: Menghapus Riwayat Latihan
+
+// 6. DELETE: Menghapus Riwayat Latihan
 exports.deleteLog = async (req, res) => {
     try {
         const id = req.params.id;
+
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID log tidak valid." });
+        }
+
         const deleted = await WorkoutLog.findOneAndDelete({ _id: id, user: req.user.id });
 
         if (!deleted) {

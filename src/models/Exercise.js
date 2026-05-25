@@ -1,39 +1,35 @@
 const mongoose = require('mongoose');
 
-const ExerciseSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    // REFERENSI KE TABEL MUSCLE + PERSENTASE
-    muscles: [
-        {
-            muscleId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Muscle',
-                required: true
-            },
-            percentage: {
-                type: Number,
-                required: true
-            }
-        }
-    ],
-    // REFERENSI KE TABEL EQUIPMENT (Cukup ambil ID-nya saja)
-    equipment: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Equipment',
-        required: true
-    },
-    instructions: { type: String },
-    videoUrl: { type: String },
-    image: { type: String },
+const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        default: null
-    }
+        required: true
+    },
+    workoutName: {
+        type: String,
+        default: 'Custom Workout'
+    },
+    duration: {
+        type: Number,
+        default: 0
+    },
+    isCompleted: {
+        type: Boolean,
+        default: false
+    },
+    // Deklarasikan array exercises secara lugas dan bersih agar Mongoose tidak bingung memetakan path relasinya
+    exercises: [{
+        exerciseId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Exercise', // WAJIB SAMA PERSIS dengan string ekspor di model Exercise.js
+            required: true
+        },
+        sets: [{
+            reps: { type: Number, required: true },
+            weight: { type: Number, default: 0 }
+        }]
+    }]
 }, { timestamps: true });
 
-module.exports = mongoose.model('Exercise', ExerciseSchema);
+module.exports = mongoose.model('WorkoutLog', WorkoutLogSchema);
