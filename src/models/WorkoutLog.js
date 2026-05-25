@@ -1,50 +1,37 @@
 const mongoose = require('mongoose');
 
 // =========================================================================
-// 1. REGISTRASI SAKTI: Deklarasikan Skema Master Exercise di Sini
+// 1. FALLBACK REGISTRATION: Mengunci Semua Skema Relasi agar Vercel Kebal Error
 // =========================================================================
-const ExerciseSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true,
-        trim: true
-    },
-    equipment: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Equipment',
-        required: true
-    },
-    muscles: [
-        {
-            muscleId: {
-                type: mongoose.Schema.Types.ObjectId,
-                ref: 'Muscle',
-                required: true
-            },
-            percentage: {
-                type: Number,
-                required: true,
-                min: 1,
-                max: 100
-            }
-        }
-    ],
-    instructions: {
-        type: [String],
-        default: []
-    },
-    videoUrl: {
-        type: String,
-        default: ""
-    },
-    image: {
-        type: String,
-        default: ""
-    }
-}, { timestamps: true });
 
-// Ekspor/Daftarkan model Exercise secara global ke memori Mongoose
+// Proteksi Model Equipment
+if (!mongoose.models.Equipment) {
+    mongoose.model('Equipment', new mongoose.Schema({
+        name: { type: String, required: true }
+    }, { timestamps: true }));
+}
+
+// Proteksi Model Muscle
+if (!mongoose.models.Muscle) {
+    mongoose.model('Muscle', new mongoose.Schema({
+        name: { type: String, required: true }
+    }, { timestamps: true }));
+}
+
+// Proteksi Model Exercise
 if (!mongoose.models.Exercise) {
+    const ExerciseSchema = new mongoose.Schema({
+        name: { type: String, required: true, trim: true },
+        equipment: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+        muscles: [{
+            muscleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Muscle', required: true },
+            percentage: { type: Number, required: true }
+        }],
+        instructions: { type: [String], default: [] },
+        videoUrl: { type: String, default: "" },
+        image: { type: String, default: "" }
+    }, { timestamps: true });
+
     mongoose.model('Exercise', ExerciseSchema);
 }
 
