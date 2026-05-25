@@ -14,25 +14,23 @@ const WorkoutLogSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
-    isCompleted: { // Pastikan field ini ada di skema kamu
+    isCompleted: {
         type: Boolean,
         default: false
     },
-    exercises: [
-        {
-            exerciseId: {
-                type: mongoose.Schema.Types.ObjectId, // WAJIB BERBENTUK OBJECTID
-                ref: 'Exercise', // WAJIB MERUJUK KE MODEL EXERCISE KAMU
-                required: true
-            },
-            sets: [
-                {
-                    reps: { type: Number, required: true },
-                    weight: { type: Number, default: 0 }
-                }
-            ]
-        }
-    ]
+    // Deklarasi array yang bersih dan lugas agar populate path 'exercises.exerciseId' terbaca sempurna
+    exercises: [{
+        exerciseId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Exercise', // Memastikan rujukan kuat ke model Exercise master
+            required: true
+        },
+        sets: [{
+            reps: { type: Number, required: true },
+            weight: { type: Number, default: 0 } // berat dalam kg
+        }]
+    }]
 }, { timestamps: true });
 
-module.exports = mongoose.model('WorkoutLog', WorkoutLogSchema);
+// PROTEKSI UTAMA VERCEL: Mencegah OverwriteModelError saat fungsi serverless dicompile ulang
+module.exports = mongoose.models.WorkoutLog || mongoose.model('WorkoutLog', WorkoutLogSchema);
