@@ -1,7 +1,7 @@
-const mongoose = require('mongoose'); // BARU & WAJIB: Untuk casting String ID menjadi ObjectId murni
+const mongoose = require('mongoose');
 const WorkoutLog = require('../models/WorkoutLog');
 
-// 1. POST: Simpan Log Latihan Baru (Versi FIX AKAN SELALU BISA DI-POPULATE)
+// 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
@@ -10,15 +10,15 @@ exports.createLog = async (req, res) => {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan/exercise." });
         }
 
-        // SOLUSI UTAMA: Paksa casting string ID dari Postman menjadi Mongoose ObjectId murni
+        // Amankan mapping tanpa menggunakan kata 'new' yang memicu BSONVersionError
         const formattedExercises = exercises.map(item => {
-            // Validasi jika user mengirim format ID yang ngawur/rusak di Postman
             if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
                 throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
             }
 
             return {
-                exerciseId: new mongoose.Types.ObjectId(item.exerciseId), // Paksa bungkus ke ObjectId
+                // Gunakan casting string biasa, Mongoose akan otomatis mengubahnya ke ObjectId murni di tingkat skema
+                exerciseId: item.exerciseId,
                 sets: item.sets ? item.sets.map(set => ({
                     reps: parseInt(set.reps) || 0,
                     weight: parseFloat(set.weight) || 0
@@ -44,7 +44,7 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL: Ambil Semua Riwayat Khusus User + Render Detail Relasi Lengkap
+// 2. GET ALL: Ambil Semua Riwayat Khusus User
 exports.getAllLogs = async (req, res) => {
     try {
         const logs = await WorkoutLog.find({ user: req.user.id })
@@ -58,8 +58,9 @@ exports.getAllLogs = async (req, res) => {
             .sort({ createdAt: -1 });
 
         const formattedLogs = logs.map(log => {
-            const detailRelasi = log.exercises.map(item => {
-                if (item.exerciseId) {
+            // Pelindung ekstra: pastikan log.exercises ada isinya
+            const detailRelasi = log.exercises ? log.exercises.map(item => {
+                if (item.exerciseId && typeof item.exerciseId === 'object') {
                     return {
                         _id: item.exerciseId._id,
                         name: item.exerciseId.name,
@@ -75,7 +76,7 @@ exports.getAllLogs = async (req, res) => {
                     };
                 }
                 return null;
-            }).filter(item => item !== null);
+            }).filter(item => item !== null) : [];
 
             return {
                 _id: log._id,
@@ -118,8 +119,8 @@ exports.getLogById = async (req, res) => {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        const detailRelasi = log.exercises.map(item => {
-            if (item.exerciseId) {
+        const detailRelasi = log.exercises ? log.exercises.map(item => {
+            if (item.exerciseId && typeof item.exerciseId === 'object') {
                 return {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
@@ -135,7 +136,7 @@ exports.getLogById = async (req, res) => {
                 };
             }
             return null;
-        }).filter(item => item !== null);
+        }).filter(item => item !== null) : [];
 
         res.status(200).json({
             _id: log._id,
@@ -178,8 +179,8 @@ exports.completeWorkoutLog = async (req, res) => {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        const detailRelasi = updated.exercises.map(item => {
-            if (item.exerciseId) {
+        const detailRelasi = updated.exercises ? updated.exercises.map(item => {
+            if (item.exerciseId && typeof item.exerciseId === 'object') {
                 return {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
@@ -192,7 +193,7 @@ exports.completeWorkoutLog = async (req, res) => {
                 };
             }
             return null;
-        }).filter(item => item !== null);
+        }).filter(item => item !== null) : [];
 
         res.status(200).json({
             message: "Sesi latihan berhasil diselesaikan!",
@@ -233,14 +234,13 @@ exports.updateLog = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data riwayat yang diubah." });
         }
 
-        // Jika user melakukan update pada data latihan, pastikan di-cast kembali menjadi ObjectId murni
         if (updateFields.exercises && Array.isArray(updateFields.exercises)) {
             updateFields.exercises = updateFields.exercises.map(item => {
                 if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
                     throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
                 }
                 return {
-                    exerciseId: new mongoose.Types.ObjectId(item.exerciseId),
+                    exerciseId: item.exerciseId, // Serahkan casting string ke Mongoose secara alami
                     sets: item.sets ? item.sets.map(set => ({
                         reps: parseInt(set.reps) || 0,
                         weight: parseFloat(set.weight) || 0
@@ -265,8 +265,8 @@ exports.updateLog = async (req, res) => {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        const detailRelasi = updated.exercises.map(item => {
-            if (item.exerciseId) {
+        const detailRelasi = updated.exercises ? updated.exercises.map(item => {
+            if (item.exerciseId && typeof item.exerciseId === 'object') {
                 return {
                     _id: item.exerciseId._id,
                     name: item.exerciseId.name,
@@ -279,7 +279,7 @@ exports.updateLog = async (req, res) => {
                 };
             }
             return null;
-        }).filter(item => item !== null);
+        }).filter(item => item !== null) : [];
 
         res.status(200).json({
             _id: updated._id,
