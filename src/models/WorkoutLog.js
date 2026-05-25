@@ -1,7 +1,14 @@
 const mongoose = require('mongoose');
 
-// PANTING & KHUSUS VERCEL: Paksa import model Exercise di sini agar skemanya langsung terdaftar global sebelum populate dijalankan
-require('./Exercise');
+// =========================================================================
+// SAFE REGISTRATION FOR VERCEL SERVERLESS
+// =========================================================================
+// Jika karena satu hal model 'Exercise' belum dimuat oleh container Vercel,
+// kita buatkan 'placeholder schema' kosong agar Mongoose tidak memicu MissingSchemaError.
+if (!mongoose.models.Exercise) {
+    mongoose.model('Exercise', new mongoose.Schema({}, { strict: false }));
+}
+// =========================================================================
 
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
@@ -24,7 +31,7 @@ const WorkoutLogSchema = new mongoose.Schema({
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise', // Harus cocok dengan nama model yang diekspor
+            ref: 'Exercise', // Merujuk ke registrasi aman di atas
             required: true
         },
         sets: [{
