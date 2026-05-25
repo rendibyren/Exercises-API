@@ -20,13 +20,12 @@ exports.getAllExercises = async (req, res) => {
             });
         }
 
-        // Ambil data dengan mem-populate tabel Equipment dan Muscle
         const data = await Exercise.find()
             .sort({ name: 1 })
             .skip(skip)
             .limit(limit)
-            .populate('equipment', 'name') // Mengambil nama alat saja
-            .populate('muscles.muscleId', 'name'); // Mengambil nama otot saja
+            .populate('equipment', 'name')
+            .populate('muscles.muscleId', 'name');
 
         res.status(200).json({
             currentPage: page,
@@ -41,7 +40,26 @@ exports.getAllExercises = async (req, res) => {
     }
 };
 
-// 2. POST (Membuat latihan baru dengan skema relasi)
+// 2. GET BY ID (BARU: Mengambil detail satu latihan berdasarkan ID + Populate Lengkap)
+exports.getExerciseById = async (req, res) => {
+    try {
+        const id = req.params.id;
+        const data = await Exercise.findById(id)
+            .populate('equipment', 'name')
+            .populate('muscles.muscleId', 'name');
+
+        if (!data) {
+            return res.status(404).json({ message: "Latihan tidak ditemukan." });
+        }
+
+        res.status(200).json(data);
+    } catch (error) {
+        console.error("DEBUG GET BY ID ERROR:", error);
+        res.status(500).json({ message: "Terjadi kesalahan server saat mengambil detail latihan.", error: error.message });
+    }
+};
+
+// 3. POST (Membuat latihan baru dengan skema relasi)
 exports.createExercise = async (req, res) => {
     try {
         if (!req.body || !req.body.name || req.body.name.trim() === "") {
@@ -56,8 +74,8 @@ exports.createExercise = async (req, res) => {
 
         const newExercise = new Exercise({
             name: req.body.name,
-            muscles: req.body.muscles,      // Menangkap array [{ muscleId, percentage }]
-            equipment: req.body.equipment,  // Menangkap ID Equipment
+            muscles: req.body.muscles,
+            equipment: req.body.equipment,
             instructions: req.body.instructions,
             videoUrl: req.body.videoUrl,
             image: req.body.image,
@@ -72,12 +90,11 @@ exports.createExercise = async (req, res) => {
     }
 };
 
-// 3. PUT (Partial Update)
+// 4. PUT (Partial Update)
 exports.updateExercise = async (req, res) => {
     try {
         const id = req.params.id;
         const updateFields = {};
-        // Sesuaikan field target dengan skema baru ('muscles' bukan 'muscle')
         const allowedFields = ['name', 'muscles', 'equipment', 'instructions', 'videoUrl', 'image'];
 
         allowedFields.forEach(field => {
@@ -107,7 +124,7 @@ exports.updateExercise = async (req, res) => {
     }
 };
 
-// 4. DELETE (Menghapus latihan berdasarkan ID)
+// 5. DELETE (Menghapus latihan berdasarkan ID)
 exports.deleteExercise = async (req, res) => {
     try {
         const id = req.params.id;

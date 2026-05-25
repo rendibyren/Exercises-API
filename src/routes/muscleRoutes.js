@@ -1,23 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const Muscle = require('../models/Muscle');
 const { protect } = require('../middleware/authMiddleware');
+const muscleController = require('../controllers/muscleController');
 
-// POST: Tambah Otot Baru
-router.post('/', protect, async (req, res) => {
-    try {
-        const newMuscle = new Muscle({ name: req.body.name });
-        const saved = await newMuscle.save();
-        res.status(201).json(saved);
-    } catch (err) {
-        res.status(400).json({ message: "Gagal input nama otot", error: err.message });
+// 1. Operasi Basis (Tanpa ID)
+router.post('/', protect, muscleController.createMuscle);
+router.get('/', muscleController.getAllMuscles);
+
+// 2. Kebijakan jika user lupa ID saat PUT / DELETE
+router.all('/', (req, res, next) => {
+    if (req.method === 'PUT' || req.method === 'DELETE') {
+        return res.status(400).json({
+            message: `Gagal ${req.method === 'PUT' ? 'update' : 'hapus'}! Silakan pilih otot dulu (masukkan ID).`
+        });
     }
+    next();
 });
 
-// GET: Ambil Semua Daftar Otot
-router.get('/', async (req, res) => {
-    const data = await Muscle.find().sort({ name: 1 });
-    res.json(data);
-});
+// 3. Operasi dengan Parameter ID
+router.get('/:id', muscleController.getMuscleById);
+router.put('/:id', protect, muscleController.updateMuscle);
+router.delete('/:id', protect, muscleController.deleteMuscle);
 
 module.exports = router;

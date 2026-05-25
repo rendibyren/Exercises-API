@@ -5,13 +5,12 @@ exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
 
-        // Validasi input minimal
         if (!exercises || !Array.isArray(exercises) || exercises.length === 0) {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan/exercise." });
         }
 
         const newLog = new WorkoutLog({
-            user: req.user.id, // Diambil dari middleware 'protect'
+            user: req.user.id,
             workoutName: workoutName || "Custom Workout",
             duration: duration || 0,
             exercises
@@ -25,31 +24,40 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL (Ambil Riwayat Khusus milik user yang login + Array Detail Relasi di Paling Bawah)
+// 2. GET ALL (Ambil Riwayat Khusus User + Deep Populate Relasi Teranyar)
 exports.getAllLogs = async (req, res) => {
     try {
-        // Ambil data riwayat dan populate seluruh field dari tabel exercises
+        // Melakukan Deep Populate sampai ke sub-tabel equipment dan muscles asli
         const logs = await WorkoutLog.find({ user: req.user.id })
-            .populate('exercises.exerciseId')
+            .populate({
+                path: 'exercises.exerciseId',
+                populate: [
+                    { path: 'equipment', select: 'name' },
+                    { path: 'muscles.muscleId', select: 'name' }
+                ]
+            })
             .sort({ createdAt: -1 });
 
-        // Format ulang struktur data agar menyertakan properti 'detail' berbentuk array sesuai arahan dosen
+        // Format ulang struktur agar rapi dibaca frontend React
         const formattedLogs = logs.map(log => {
             const detailRelasi = log.exercises.map(item => {
                 if (item.exerciseId) {
                     return {
                         _id: item.exerciseId._id,
                         name: item.exerciseId.name,
-                        muscle: item.exerciseId.muscle,
-                        equipment: item.exerciseId.equipment,
+                        equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
+                        muscles: item.exerciseId.muscles.map(m => ({
+                            name: m.muscleId ? m.muscleId.name : null,
+                            percentage: m.percentage
+                        })),
                         instructions: item.exerciseId.instructions,
                         videoUrl: item.exerciseId.videoUrl,
                         image: item.exerciseId.image,
-                        sets: item.sets // Menyertakan set (reps & weight) di dalam detail latihan ini
+                        sets: item.sets
                     };
                 }
                 return null;
-            }).filter(item => item !== null); // Membuang data jika reference exercise tidak ditemukan/null
+            }).filter(item => item !== null);
 
             return {
                 _id: log._id,
@@ -58,7 +66,7 @@ exports.getAllLogs = async (req, res) => {
                 duration: log.duration,
                 createdAt: log.createdAt,
                 updatedAt: log.updatedAt,
-                detail: detailRelasi // Array data berelasi di paling bawah objek log
+                detail: detailRelasi
             };
         });
 
@@ -69,14 +77,13 @@ exports.getAllLogs = async (req, res) => {
     }
 };
 
-// 3. PUT (Partial Update Log - Hanya mengupdate field riwayat yang dikirim saja)
+// 3. PUT (Partial Update Log)
 exports.updateLog = async (req, res) => {
     try {
         const id = req.params.id;
         const updateFields = {};
         const allowedFields = ['workoutName', 'duration', 'exercises'];
 
-        // Filter data body agar hanya field yang valid yang diproses
         allowedFields.forEach(field => {
             if (req.body[field] !== undefined) {
                 updateFields[field] = req.body[field];
@@ -87,9 +94,8 @@ exports.updateLog = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data riwayat yang diubah." });
         }
 
-        // Jalankan update parsial dengan $set dan pastikan riwayat itu memang milik user yang login
         const updated = await WorkoutLog.findOneAndUpdate(
-            { _id: id, user: req.user.id }, // Proteksi: Hanya pemilik log yang bisa update
+            { _id: id, user: req.user.id },
             { $set: updateFields },
             { new: true, runValidators: true }
         );
@@ -109,8 +115,6 @@ exports.updateLog = async (req, res) => {
 exports.deleteLog = async (req, res) => {
     try {
         const id = req.params.id;
-
-        // Proteksi: Hanya pemilik log yang bisa menghapus log miliknya
         const deleted = await WorkoutLog.findOneAndDelete({ _id: id, user: req.user.id });
 
         if (!deleted) {

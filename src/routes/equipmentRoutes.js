@@ -1,23 +1,25 @@
 const express = require('express');
 const router = express.Router();
-const Equipment = require('../models/Equipment');
 const { protect } = require('../middleware/authMiddleware');
+const equipmentController = require('../controllers/equipmentController');
 
-// POST: Tambah Alat Baru
-router.post('/', protect, async (req, res) => {
-    try {
-        const newEquip = new Equipment({ name: req.body.name });
-        const saved = await newEquip.save();
-        res.status(201).json(saved);
-    } catch (err) {
-        res.status(400).json({ message: "Gagal input alat", error: err.message });
+// 1. Operasi Basis (Tanpa ID)
+router.post('/', protect, equipmentController.createEquipment);
+router.get('/', equipmentController.getAllEquipments);
+
+// 2. Kebijakan jika user lupa ID saat PUT / DELETE
+router.all('/', (req, res, next) => {
+    if (req.method === 'PUT' || req.method === 'DELETE') {
+        return res.status(400).json({
+            message: `Gagal ${req.method === 'PUT' ? 'update' : 'hapus'}! Silakan pilih alat dulu (masukkan ID).`
+        });
     }
+    next();
 });
 
-// GET: Ambil Semua Daftar Alat
-router.get('/', async (req, res) => {
-    const data = await Equipment.find().sort({ name: 1 });
-    res.json(data);
-});
+// 3. Operasi dengan Parameter ID
+router.get('/:id', equipmentController.getEquipmentById);
+router.put('/:id', protect, equipmentController.updateEquipment);
+router.delete('/:id', protect, equipmentController.deleteEquipment);
 
 module.exports = router;
