@@ -1,5 +1,56 @@
 const mongoose = require('mongoose');
 
+// =========================================================================
+// 1. REGISTRASI SAKTI: Deklarasikan Skema Master Exercise di Sini
+// =========================================================================
+const ExerciseSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    equipment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Equipment',
+        required: true
+    },
+    muscles: [
+        {
+            muscleId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'Muscle',
+                required: true
+            },
+            percentage: {
+                type: Number,
+                required: true,
+                min: 1,
+                max: 100
+            }
+        }
+    ],
+    instructions: {
+        type: [String],
+        default: []
+    },
+    videoUrl: {
+        type: String,
+        default: ""
+    },
+    image: {
+        type: String,
+        default: ""
+    }
+}, { timestamps: true });
+
+// Ekspor/Daftarkan model Exercise secara global ke memori Mongoose
+if (!mongoose.models.Exercise) {
+    mongoose.model('Exercise', ExerciseSchema);
+}
+
+// =========================================================================
+// 2. SKEMA UTAMA: WorkoutLogSchema
+// =========================================================================
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -18,8 +69,6 @@ const WorkoutLogSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    // STRATEGI ABSOLUT: Simpan struktur skema data gerakan secara mandiri di sini 
-    // agar Vercel tidak perlu melakukan jabat tangan relasi antar-file yang rawan amnesia
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
