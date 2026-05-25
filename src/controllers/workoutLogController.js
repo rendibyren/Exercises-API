@@ -2,6 +2,53 @@ const mongoose = require('mongoose');
 const WorkoutLog = require('../models/WorkoutLog');
 const Exercise = require('../models/Exercise');
 
+// Fungsi pembantu (helper) untuk merakit detail relasi tanpa bergantung pada .populate() bawaan Mongoose yang rawan bermasalah di Vercel
+const kumpulkanDetailLog = async (log) => {
+    if (!log) return null;
+
+    // 1. Ambil semua exerciseId unik yang ada di dalam log ini
+    const idsLatihan = log.exercises.map(item => item.exerciseId).filter(id => id != null);
+
+    // 2. Ambil data master Exercise secara utuh dari DB Atlas sekaligus
+    // Serta langsung jalankan populate untuk alat (equipment) dan otot (muscles) di level master
+    const dataMasterLatihan = await Exercise.find({ _id: { $in: idsLatihan } })
+        .populate({ path: 'equipment', select: 'name' })
+        .populate({ path: 'muscles.muscleId', select: 'name' });
+
+    // 3. Petakan (Map) data sets user dengan data master gerakan yang cocok
+    const detailRelasi = log.exercises.map(item => {
+        const gerakanCocok = dataMasterLatihan.find(master => master._id.toString() === item.exerciseId.toString());
+
+        if (gerakanCocok) {
+            return {
+                _id: gerakanCocok._id,
+                name: gerakanCocok.name,
+                equipment: gerakanCocok.equipment ? gerakanCocok.equipment.name : null,
+                muscles: gerakanCocok.muscles ? gerakanCocok.muscles.map(m => ({
+                    name: m.muscleId ? m.muscleId.name : null,
+                    percentage: m.percentage
+                })) : [],
+                instructions: gerakanCocok.instructions || [],
+                videoUrl: gerakanCocok.videoUrl || "",
+                image: gerakanCocok.image || "",
+                sets: item.sets
+            };
+        }
+        return null;
+    }).filter(item => item !== null);
+
+    return {
+        _id: log._id,
+        user: log.user,
+        workoutName: log.workoutName,
+        duration: log.duration,
+        isCompleted: log.isCompleted || false,
+        createdAt: log.createdAt,
+        updatedAt: log.updatedAt,
+        detail: detailRelasi
+    };
+};
+
 // 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
     try {
@@ -15,9 +62,8 @@ exports.createLog = async (req, res) => {
             if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
                 throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
             }
-
             return {
-                exerciseId: item.exerciseId,
+                exerciseId: new mongoose.Types.ObjectId(item.exerciseId),
                 sets: item.sets ? item.sets.map(set => ({
                     reps: parseInt(set.reps) || 0,
                     weight: parseFloat(set.weight) || 0
@@ -46,48 +92,10 @@ exports.createLog = async (req, res) => {
 // 2. GET ALL: Ambil Semua Riwayat Khusus User
 exports.getAllLogs = async (req, res) => {
     try {
-        const logs = await WorkoutLog.find({ user: req.user.id })
-            .populate({
-                path: 'exercises.exerciseId',
-                populate: [
-                    { path: 'equipment', select: 'name' },
-                    { path: 'muscles.muscleId', select: 'name' }
-                ]
-            })
-            .sort({ createdAt: -1 });
+        const logs = await WorkoutLog.find({ user: req.user.id }).sort({ createdAt: -1 });
 
-        const formattedLogs = logs.map(log => {
-            const detailRelasi = log.exercises ? log.exercises.map(item => {
-                // Perbaikan Kunci: Cek apakah field nama hasil populate berhasil keluar
-                if (item.exerciseId && item.exerciseId.name) {
-                    return {
-                        _id: item.exerciseId._id,
-                        name: item.exerciseId.name,
-                        equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                        muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
-                            name: m.muscleId ? m.muscleId.name : null,
-                            percentage: m.percentage
-                        })) : [],
-                        instructions: item.exerciseId.instructions,
-                        videoUrl: item.exerciseId.videoUrl,
-                        image: item.exerciseId.image,
-                        sets: item.sets
-                    };
-                }
-                return null;
-            }).filter(item => item !== null) : [];
-
-            return {
-                _id: log._id,
-                user: log.user,
-                workoutName: log.workoutName,
-                duration: log.duration,
-                isCompleted: log.isCompleted || false,
-                createdAt: log.createdAt,
-                updatedAt: log.updatedAt,
-                detail: detailRelasi
-            };
-        });
+        // Rakit detail untuk setiap log secara paralel menggunakan Promise.all
+        const formattedLogs = await Promise.all(logs.map(log => kumpulkanDetailLog(log)));
 
         res.status(200).json(formattedLogs);
     } catch (error) {
@@ -105,48 +113,14 @@ exports.getLogById = async (req, res) => {
             return res.status(400).json({ message: "Format ID log tidak valid." });
         }
 
-        const log = await WorkoutLog.findOne({ _id: id, user: req.user.id })
-            .populate({
-                path: 'exercises.exerciseId',
-                populate: [
-                    { path: 'equipment', select: 'name' },
-                    { path: 'muscles.muscleId', select: 'name' }
-                ]
-            });
+        const log = await WorkoutLog.findOne({ _id: id, user: req.user.id });
 
         if (!log) {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        const detailRelasi = log.exercises ? log.exercises.map(item => {
-            if (item.exerciseId && item.exerciseId.name) {
-                return {
-                    _id: item.exerciseId._id,
-                    name: item.exerciseId.name,
-                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                    muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
-                        name: m.muscleId ? m.muscleId.name : null,
-                        percentage: m.percentage
-                    })) : [],
-                    instructions: item.exerciseId.instructions,
-                    videoUrl: item.exerciseId.videoUrl,
-                    image: item.exerciseId.image,
-                    sets: item.sets
-                };
-            }
-            return null;
-        }).filter(item => item !== null) : [];
-
-        res.status(200).json({
-            _id: log._id,
-            user: log.user,
-            workoutName: log.workoutName,
-            duration: log.duration,
-            isCompleted: log.isCompleted || false,
-            createdAt: log.createdAt,
-            updatedAt: log.updatedAt,
-            detail: detailRelasi
-        });
+        const formattedLog = await kumpulkanDetailLog(log);
+        res.status(200).json(formattedLog);
     } catch (error) {
         console.error("DEBUG GET LOG BY ID ERROR:", error);
         res.status(500).json({ message: "Terjadi kesalahan server saat mengambil detail riwayat.", error: error.message });
@@ -166,44 +140,16 @@ exports.completeWorkoutLog = async (req, res) => {
             { _id: id, user: req.user.id },
             { $set: { isCompleted: true } },
             { new: true }
-        ).populate({
-            path: 'exercises.exerciseId',
-            populate: [
-                { path: 'equipment', select: 'name' },
-                { path: 'muscles.muscleId', select: 'name' }
-            ]
-        });
+        );
 
         if (!updated) {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        const detailRelasi = updated.exercises ? updated.exercises.map(item => {
-            if (item.exerciseId && item.exerciseId.name) {
-                return {
-                    _id: item.exerciseId._id,
-                    name: item.exerciseId.name,
-                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                    muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
-                        name: m.muscleId ? m.muscleId.name : null,
-                        percentage: m.percentage
-                    })) : [],
-                    sets: item.sets
-                };
-            }
-            return null;
-        }).filter(item => item !== null) : [];
-
+        const formattedLog = await kumpulkanDetailLog(updated);
         res.status(200).json({
             message: "Sesi latihan berhasil diselesaikan!",
-            data: {
-                _id: updated._id,
-                workoutName: updated.workoutName,
-                duration: updated.duration,
-                isCompleted: updated.isCompleted,
-                createdAt: updated.createdAt,
-                detail: detailRelasi
-            }
+            data: formattedLog
         });
     } catch (error) {
         console.error("DEBUG COMPLETE LOG ERROR:", error);
@@ -239,7 +185,7 @@ exports.updateLog = async (req, res) => {
                     throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
                 }
                 return {
-                    exerciseId: item.exerciseId,
+                    exerciseId: new mongoose.Types.ObjectId(item.exerciseId),
                     sets: item.sets ? item.sets.map(set => ({
                         reps: parseInt(set.reps) || 0,
                         weight: parseFloat(set.weight) || 0
@@ -252,44 +198,14 @@ exports.updateLog = async (req, res) => {
             { _id: id, user: req.user.id },
             { $set: updateFields },
             { new: true, runValidators: true }
-        ).populate({
-            path: 'exercises.exerciseId',
-            populate: [
-                { path: 'equipment', select: 'name' },
-                { path: 'muscles.muscleId', select: 'name' }
-            ]
-        });
+        );
 
         if (!updated) {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        const detailRelasi = updated.exercises ? updated.exercises.map(item => {
-            if (item.exerciseId && item.exerciseId.name) {
-                return {
-                    _id: item.exerciseId._id,
-                    name: item.exerciseId.name,
-                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                    muscles: item.exerciseId.muscles ? item.exerciseId.muscles.map(m => ({
-                        name: m.muscleId ? m.muscleId.name : null,
-                        percentage: m.percentage
-                    })) : [],
-                    sets: item.sets
-                };
-            }
-            return null;
-        }).filter(item => item !== null) : [];
-
-        res.status(200).json({
-            _id: updated._id,
-            user: updated.user,
-            workoutName: updated.workoutName,
-            duration: updated.duration,
-            isCompleted: updated.isCompleted,
-            createdAt: updated.createdAt,
-            updatedAt: updated.updatedAt,
-            detail: detailRelasi
-        });
+        const formattedLog = await kumpulkanDetailLog(updated);
+        res.status(200).json(formattedLog);
     } catch (error) {
         console.error("DEBUG PUT LOG ERROR:", error);
         res.status(error.message?.includes('Format exerciseId') ? 400 : 500).json({
