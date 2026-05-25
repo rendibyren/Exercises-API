@@ -1,6 +1,7 @@
 const WorkoutLog = require('../models/WorkoutLog');
 
 // 1. POST: Simpan Log Latihan Baru
+// 1. POST (Simpan Log Latihan Baru - Versi Fix Populate)
 exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
@@ -9,11 +10,22 @@ exports.createLog = async (req, res) => {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan/exercise." });
         }
 
+        // BARU & KRUSIAL: Memastikan data exercises dipetakan dengan benar sesuai nama field skema (exerciseId)
+        const formattedExercises = exercises.map(item => {
+            return {
+                exerciseId: item.exerciseId, // Memastikan key ini masuk dengan tepat ke Mongoose
+                sets: item.sets ? item.sets.map(set => ({
+                    reps: parseInt(set.reps) || 0,
+                    weight: parseFloat(set.weight) || 0
+                })) : []
+            };
+        });
+
         const newLog = new WorkoutLog({
             user: req.user.id,
             workoutName: workoutName || "Custom Workout",
             duration: duration || 0,
-            exercises
+            exercises: formattedExercises // Masukkan data yang sudah diformat bersih
         });
 
         const savedLog = await newLog.save();
