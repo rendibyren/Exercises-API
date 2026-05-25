@@ -1,7 +1,21 @@
 const mongoose = require('mongoose');
 
-// Paksa panggil skema asli Exercise murni agar tipenya terikat sempurna sebelum dikompilasi
-require('./Exercise');
+if (!mongoose.models.Exercise) {
+    // Jika belum ada, buat skema minimal yang berisi field relasi agar populate tidak kosong
+    const EmergencyExerciseSchema = new mongoose.Schema({
+        name: { type: String, required: true },
+        equipment: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+        muscles: [{
+            muscleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Muscle' },
+            percentage: { type: Number }
+        }],
+        instructions: [String],
+        videoUrl: String,
+        image: String
+    });
+    mongoose.model('Exercise', EmergencyExerciseSchema);
+}
+// =========================================================================
 
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
@@ -24,7 +38,7 @@ const WorkoutLogSchema = new mongoose.Schema({
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise',
+            ref: 'Exercise', // Merujuk aman ke model yang sudah dipastikan ada di atas
             required: true
         },
         sets: [{
