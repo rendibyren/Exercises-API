@@ -129,10 +129,13 @@ exports.getLogById = async (req, res) => {
 };
 
 // 4. PUT: Update Log
+// PUT: /api/logs/:id (Rute umum untuk edit field nama, durasi, atau set latihan)
 exports.updateLog = async (req, res) => {
     try {
         const id = req.params.id;
         const updateFields = {};
+
+        // Kunci agar 'isCompleted' tidak bisa dimanipulasi lewat rute umum ini
         const allowedFields = ['workoutName', 'duration', 'exercises'];
 
         allowedFields.forEach(field => {
@@ -149,30 +152,8 @@ exports.updateLog = async (req, res) => {
             { _id: id, user: req.user.id },
             { $set: updateFields },
             { new: true, runValidators: true }
-        );
-
-        if (!updated) {
-            return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
-        }
-
-        res.status(200).json(updated);
-    } catch (error) {
-        console.error("DEBUG PUT LOG ERROR:", error);
-        res.status(500).json({ message: "Terjadi kesalahan server saat update riwayat.", error: error.message });
-    }
-};
-// FUNCTION KHUSUS: Mengubah isCompleted menjadi true
-exports.completeWorkoutLog = async (req, res) => {
-    try {
-        const id = req.params.id;
-
-        // Kunci update hanya untuk field isCompleted saja menjadi true
-        const updated = await WorkoutLog.findOneAndUpdate(
-            { _id: id, user: req.user.id },
-            { $set: { isCompleted: true } },
-            { new: true }
         ).populate({
-            path: 'exercises.exerciseId',
+            path: 'exercises.exercise', // Menggunakan 'exercise'
             populate: [
                 { path: 'equipment', select: 'name' },
                 { path: 'muscles.muscleId', select: 'name' }
@@ -183,17 +164,71 @@ exports.completeWorkoutLog = async (req, res) => {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
         }
 
-        // Format ulang response agar field detailnya ikut keluar jika datanya valid
         const detailRelasi = updated.exercises.map(item => {
-            if (item.exerciseId) {
+            if (item.exercise) {
                 return {
-                    _id: item.exerciseId._id,
-                    name: item.exerciseId.name,
-                    equipment: item.exerciseId.equipment ? item.exerciseId.equipment.name : null,
-                    muscles: item.exerciseId.muscles.map(m => ({
+                    _id: item.exercise._id,
+                    name: item.exercise.name,
+                    equipment: item.exercise.equipment ? item.exercise.equipment.name : null,
+                    muscles: item.exercise.muscles ? item.exercise.muscles.map(m => ({
                         name: m.muscleId ? m.muscleId.name : null,
                         percentage: m.percentage
-                    })),
+                    })) : [],
+                    sets: item.sets
+                };
+            }
+            return null;
+        }).filter(item => item !== null);
+
+        res.status(200).json({
+            _id: updated._id,
+            user: updated.user,
+            workoutName: updated.workoutName,
+            duration: updated.duration,
+            isCompleted: updated.isCompleted,
+            createdAt: updated.createdAt,
+            updatedAt: updated.updatedAt,
+            detail: detailRelasi
+        });
+    } catch (error) {
+        console.error("DEBUG PUT LOG ERROR:", error);
+        res.status(500).json({ message: "Terjadi kesalahan server saat update riwayat.", error: error.message });
+    }
+};
+// FUNCTION KHUSUS: Mengubah isCompleted menjadi true
+// PUT: /api/logs/complete/:id (Khusus mengubah status selesai)
+exports.completeWorkoutLog = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        // Langsung kunci, hanya ubah field isCompleted menjadi true
+        const updated = await WorkoutLog.findOneAndUpdate(
+            { _id: id, user: req.user.id },
+            { $set: { isCompleted: true } },
+            { new: true }
+        ).populate({
+            path: 'exercises.exercise', // Sesuai nama field di DB kamu: 'exercise'
+            populate: [
+                { path: 'equipment', select: 'name' },
+                { path: 'muscles.muscleId', select: 'name' }
+            ]
+        });
+
+        if (!updated) {
+            return res.status(404).json({ message: "Riwayat latihan tidak ditemukan atau Anda tidak memiliki akses." });
+        }
+
+        // Mapping detail relasi (Sudah diperbaiki ke item.exercise)
+        const detailRelasi = updated.exercises.map(item => {
+            if (item.exercise) {
+                return {
+                    _id: item.exercise._id,
+                    name: item.exercise.name,
+                    equipment: item.exercise.equipment ? item.exercise.equipment.name : null,
+                    muscles: item.exercise.muscles ? item.exercise.muscles.map(m => ({
+                        name: m.muscleId ? m.muscleId.name : null,
+                        percentage: m.percentage
+                    })) : [],
                     sets: item.sets
                 };
             }
