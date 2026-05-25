@@ -1,5 +1,8 @@
 const mongoose = require('mongoose');
 
+// PANTING & KHUSUS VERCEL: Paksa import model Exercise di sini agar skemanya langsung terdaftar global sebelum populate dijalankan
+require('./Exercise');
+
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -18,19 +21,17 @@ const WorkoutLogSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    // Deklarasi array yang bersih dan lugas agar populate path 'exercises.exerciseId' terbaca sempurna
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise', // Memastikan rujukan kuat ke model Exercise master
+            ref: 'Exercise', // Harus cocok dengan nama model yang diekspor
             required: true
         },
         sets: [{
             reps: { type: Number, required: true },
-            weight: { type: Number, default: 0 } // berat dalam kg
+            weight: { type: Number, default: 0 }
         }]
     }]
 }, { timestamps: true });
 
-// PROTEKSI UTAMA VERCEL: Mencegah OverwriteModelError saat fungsi serverless dicompile ulang
 module.exports = mongoose.models.WorkoutLog || mongoose.model('WorkoutLog', WorkoutLogSchema);
