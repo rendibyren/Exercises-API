@@ -1,43 +1,5 @@
 const mongoose = require('mongoose');
 
-// =========================================================================
-// 1. FALLBACK REGISTRATION: Mengunci Semua Skema Relasi agar Vercel Kebal Error
-// =========================================================================
-
-// Proteksi Model Equipment
-if (!mongoose.models.Equipment) {
-    mongoose.model('Equipment', new mongoose.Schema({
-        name: { type: String, required: true }
-    }, { timestamps: true }));
-}
-
-// Proteksi Model Muscle
-if (!mongoose.models.Muscle) {
-    mongoose.model('Muscle', new mongoose.Schema({
-        name: { type: String, required: true }
-    }, { timestamps: true }));
-}
-
-// Proteksi Model Exercise
-if (!mongoose.models.Exercise) {
-    const ExerciseSchema = new mongoose.Schema({
-        name: { type: String, required: true, trim: true },
-        equipment: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
-        muscles: [{
-            muscleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Muscle', required: true },
-            percentage: { type: Number, required: true }
-        }],
-        instructions: { type: [String], default: [] },
-        videoUrl: { type: String, default: "" },
-        image: { type: String, default: "" }
-    }, { timestamps: true });
-
-    mongoose.model('Exercise', ExerciseSchema);
-}
-
-// =========================================================================
-// 2. SKEMA UTAMA: WorkoutLogSchema
-// =========================================================================
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -49,21 +11,22 @@ const WorkoutLogSchema = new mongoose.Schema({
         default: 'Custom Workout'
     },
     duration: {
-        type: Number,
+        type: Number, // Durasi latihan dalam hitungan menit
         default: 0
     },
     isCompleted: {
         type: Boolean,
-        default: false
+        default: false // Otomatis false saat mulai latihan, jadi true kalau user klik selesai
     },
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
+            ref: 'Exercise', // Referensi murni ke model master Exercise
             required: true
         },
         sets: [{
             reps: { type: Number, required: true },
-            weight: { type: Number, default: 0 }
+            weight: { type: Number, default: 0 } // Beban dalam Kg/Lbs
         }]
     }]
 }, { timestamps: true });
