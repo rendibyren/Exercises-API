@@ -1,5 +1,23 @@
 const mongoose = require('mongoose');
 
+// =========================================================================
+// SOLUSI ABSOLUT VERCEL: Placeholder Registration untuk Semua Model Relasi
+// =========================================================================
+// Jika container Vercel amnesia dan belum memuat model-model ini, kita buatkan
+// registrasi skema fleksibel kosong agar Mongoose tidak memicu MissingSchemaError.
+if (!mongoose.models.Equipment) {
+    mongoose.model('Equipment', new mongoose.Schema({}, { strict: false }));
+}
+
+if (!mongoose.models.Muscle) {
+    mongoose.model('Muscle', new mongoose.Schema({}, { strict: false }));
+}
+
+if (!mongoose.models.Exercise) {
+    mongoose.model('Exercise', new mongoose.Schema({}, { strict: false }));
+}
+// =========================================================================
+
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -21,7 +39,7 @@ const WorkoutLogSchema = new mongoose.Schema({
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise', // Referensi murni ke model master Exercise
+            ref: 'Exercise', // Referensi aman ke placeholder/model asli di atas
             required: true
         },
         sets: [{
