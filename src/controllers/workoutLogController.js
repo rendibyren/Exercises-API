@@ -16,7 +16,8 @@ const kumpulkanDetailLog = async (log) => {
 
     // 3. Petakan data sets user dengan data master gerakan yang cocok
     const detailRelasi = log.exercises.map(item => {
-        const gerakanCocok = dataMasterLatihan.find(master => master._id.toString() === item.exerciseId.toString());
+        // PERBAIKAN UTAMA: Menggunakan .equals() untuk membandingkan dua tipe data ObjectId secara presisi
+        const gerakanCocok = dataMasterLatihan.find(master => master._id.equals(item.exerciseId));
 
         if (gerakanCocok) {
             return {
@@ -81,7 +82,6 @@ exports.createLog = async (req, res) => {
         res.status(201).json(savedLog);
     } catch (error) {
         console.error("DEBUG POST LOG ERROR:", error);
-        // Perbaikan: Amankan pembacaan error.message pakai optional chaining
         const status = error?.message?.includes('Format exerciseId') ? 400 : 500;
         res.status(status).json({
             message: "Gagal menyimpan log latihan.",
