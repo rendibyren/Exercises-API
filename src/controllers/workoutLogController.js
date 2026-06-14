@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const WorkoutLog = require('../models/WorkoutLog');
 
-// 1. POST
+// 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
@@ -9,6 +9,7 @@ exports.createLog = async (req, res) => {
         if (!exercises || !Array.isArray(exercises) || exercises.length === 0) {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan." });
         }
+
         const formattedExercises = exercises.map(item => {
             if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
                 throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
@@ -40,16 +41,17 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL
+// 2. GET ALL: Ambil Semua Riwayat + Tarik Data Master Otomatis
 exports.getAllLogs = async (req, res) => {
     try {
         const logs = await WorkoutLog.find({ user: req.user.id })
             .populate({
                 path: 'exercises.exerciseId',
-                select: 'name instructions videoUrl image', 
+                select: 'name instructions videoUrl image',
+                options: { strictPopulate: false }, // Melonggarkan validasi path berlapis di Vercel
                 populate: [
-                    { path: 'equipment', select: 'name' },
-                    { path: 'muscles.muscleId', select: 'name' } 
+                    { path: 'equipment', select: 'name', options: { strictPopulate: false } },
+                    { path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } }
                 ]
             })
             .sort({ createdAt: -1 });
@@ -68,9 +70,10 @@ exports.getLogById = async (req, res) => {
             .populate({
                 path: 'exercises.exerciseId',
                 select: 'name instructions videoUrl image',
+                options: { strictPopulate: false }, // Mengunci keamanan populasi bersarang
                 populate: [
-                    { path: 'equipment', select: 'name' },
-                    { path: 'muscles.muscleId', select: 'name' }
+                    { path: 'equipment', select: 'name', options: { strictPopulate: false } },
+                    { path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } }
                 ]
             });
 
@@ -95,7 +98,8 @@ exports.completeWorkoutLog = async (req, res) => {
         ).populate({
             path: 'exercises.exerciseId',
             select: 'name',
-            populate: { path: 'equipment', select: 'name' }
+            options: { strictPopulate: false },
+            populate: { path: 'equipment', select: 'name', options: { strictPopulate: false } }
         });
 
         if (!updated) {
@@ -109,7 +113,7 @@ exports.completeWorkoutLog = async (req, res) => {
     }
 };
 
-// 5. PUT 
+// 5. PUT UMUM: Update isi nama, durasi, atau array set latihan
 exports.updateLog = async (req, res) => {
     try {
         const updateFields = {};
@@ -137,7 +141,8 @@ exports.updateLog = async (req, res) => {
             { new: true, runValidators: true }
         ).populate({
             path: 'exercises.exerciseId',
-            select: 'name'
+            select: 'name',
+            options: { strictPopulate: false }
         });
 
         if (!updated) {
