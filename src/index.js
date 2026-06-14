@@ -1,28 +1,17 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
+const path = require('path');
 
 // 1. Konfigurasi dotenv paling atas
 dotenv.config();
-
-// =========================================================================
-// REGISTRASI MASAL MODEL MONGOOSE (SOLUSI MUTLAK UNTUK SERVERLESS POPULATE)
-// =========================================================================
-// Dengan me-require semua skema di file entri utama, Mongoose akan mengunci
-// blueprint model ke memori global Vercel sebelum request API diproses.
-require('./models/User');
-require('./models/Muscle');
-require('./models/Equipment');
-require('./models/Exercise');
-require('./models/WorkoutLog');
-// =========================================================================
 
 // Import Routes
 const exerciseRoutes = require('./routes/exerciseRoutes');
 const workoutLogRoutes = require('./routes/workoutLogRoutes');
 const authRoutes = require('./routes/authRoutes');
-const equipmentRoutes = require('./routes/equipmentRoutes'); // Import Rute Equipment
-const muscleRoutes = require('./routes/muscleRoutes');       // Import Rute Muscle
+const equipmentRoutes = require('./routes/equipmentRoutes');
+const muscleRoutes = require('./routes/muscleRoutes');
 
 const app = express();
 
@@ -30,7 +19,7 @@ const app = express();
 app.use(express.json());
 app.use('/images', express.static('public/uploads'));
 
-// 3. Fungsi Koneksi MongoDB dengan Mekanisme Caching (Standar Serverless)
+// 3. Fungsi Koneksi MongoDB dengan Mekanisme Caching + Registrasi Model Paksa
 const connectDB = async () => {
     // Jika koneksi sudah ada atau sedang menghubungkan, gunakan yang sudah ada
     if (mongoose.connection.readyState >= 1) {
@@ -39,8 +28,19 @@ const connectDB = async () => {
 
     console.log('--- Membuka koneksi baru ke MongoDB Atlas ---');
     await mongoose.connect(process.env.MONGO_URI, {
-        serverSelectionTimeoutMS: 8000, // Memberikan waktu 8 detik untuk jabat tangan jaringan
+        serverSelectionTimeoutMS: 8000,
     });
+
+    // =========================================================================
+    // SOLUSI PAMUNGKAS VERCEL: Paksa Registrasi Skema Tepat Setelah Koneksi DB Terbuka
+    // Ini menjamin model terdaftar di memori global sebelum controller berjalan!
+    // =========================================================================
+    mongoose.model('User', require('./models/User').schema || require('./models/User'));
+    mongoose.model('Muscle', require('./models/Muscle').schema || require('./models/Muscle'));
+    mongoose.model('Equipment', require('./models/Equipment').schema || require('./models/Equipment'));
+    mongoose.model('Exercise', require('./models/Exercise').schema || require('./models/Exercise'));
+    mongoose.model('WorkoutLog', require('./models/WorkoutLog').schema || require('./models/WorkoutLog'));
+    // =========================================================================
 };
 
 // 4. Middleware Kunci: Memaksa Vercel menunggu koneksi DB selesai sebelum masuk ke rute API
@@ -61,17 +61,17 @@ app.use(async (req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/exercises', exerciseRoutes);
 app.use('/api/logs', workoutLogRoutes);
-app.use('/api/equipments', equipmentRoutes); // Daftarkan Rute Master Alat
-app.use('/api/muscles', muscleRoutes);       // Daftarkan Rute Master Otot
+app.use('/api/equipments', equipmentRoutes);
+app.use('/api/muscles', muscleRoutes);
 
 // 6. Jalankan Server Lokal
 const PORT = process.env.PORT || 3000;
 
 if (process.env.NODE_ENV !== 'production') {
     app.listen(PORT, () => {
-        console.log(` Server lari di port ${PORT}`);
+        console.log(`🚀 Server lari di port ${PORT}`);
     });
 }
 
-// WAJIB ADA: Export app untuk Vercel
+// Export app untuk Vercel
 module.exports = app;
