@@ -1,8 +1,5 @@
 const mongoose = require('mongoose');
 
-// Paksa panggil skema asli Exercise murni agar tipenya terikat sempurna sebelum dikompilasi
-require('./Exercise');
-
 const WorkoutLogSchema = new mongoose.Schema({
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -24,7 +21,7 @@ const WorkoutLogSchema = new mongoose.Schema({
     exercises: [{
         exerciseId: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise',
+            ref: 'Exercise', 
             required: true
         },
         sets: [{
@@ -34,4 +31,4 @@ const WorkoutLogSchema = new mongoose.Schema({
     }]
 }, { timestamps: true });
 
-module.exports = mongoose.models.WorkoutLog || mongoose.model('WorkoutLog', WorkoutLogSchema);
+module.exports = mongoose.model('WorkoutLog', WorkoutLogSchema);

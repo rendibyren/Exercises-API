@@ -4,7 +4,7 @@ const MuscleSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true,
-        unique: true, // Mencegah nama otot ganda (misal 'Chest' dua kali)
+        unique: true, 
         trim: true
     }
 }, { timestamps: true });

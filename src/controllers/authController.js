@@ -29,7 +29,7 @@ exports.register = async (req, res) => {
     }
 };
 
-// 2. LOGIN (SUDAH DIOPTIMASI UNTUK FRONTEND)
+// 2. LOGIN 
 exports.login = async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -55,7 +55,6 @@ exports.login = async (req, res) => {
             { expiresIn: '1d' }
         );
 
-        // KOREKSI OPTIMASI: Kirimkan token beserta data user-nya secara transparan
         res.status(200).json({
             message: "Login berhasil!",
             token,

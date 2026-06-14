@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const WorkoutLog = require('../models/WorkoutLog');
 
-// 1. POST: Simpan Log Latihan Baru (Hevy Style)
+// 1. POST
 exports.createLog = async (req, res) => {
     try {
         const { workoutName, duration, exercises } = req.body;
@@ -9,8 +9,6 @@ exports.createLog = async (req, res) => {
         if (!exercises || !Array.isArray(exercises) || exercises.length === 0) {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan." });
         }
-
-        // Mapping data exercises dari body request
         const formattedExercises = exercises.map(item => {
             if (!mongoose.Types.ObjectId.isValid(item.exerciseId)) {
                 throw new Error(`Format exerciseId '${item.exerciseId}' tidak valid.`);
@@ -42,17 +40,16 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL: Ambil Semua Riwayat + Tarik Data Master Otomatis (.populate)
+// 2. GET ALL
 exports.getAllLogs = async (req, res) => {
     try {
-        // Cukup panggil .populate untuk menarik data nama gerakan, alat, dan otot dari file sebelah
         const logs = await WorkoutLog.find({ user: req.user.id })
             .populate({
                 path: 'exercises.exerciseId',
-                select: 'name instructions videoUrl image', // Tarik info gerakan master
+                select: 'name instructions videoUrl image', 
                 populate: [
-                    { path: 'equipment', select: 'name' },      // Tarik info alat master
-                    { path: 'muscles.muscleId', select: 'name' } // Tarik info otot master
+                    { path: 'equipment', select: 'name' },
+                    { path: 'muscles.muscleId', select: 'name' } 
                 ]
             })
             .sort({ createdAt: -1 });
@@ -112,7 +109,7 @@ exports.completeWorkoutLog = async (req, res) => {
     }
 };
 
-// 5. PUT UMUM: Update isi nama, durasi, atau set latihan harian
+// 5. PUT 
 exports.updateLog = async (req, res) => {
     try {
         const updateFields = {};

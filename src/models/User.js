@@ -14,7 +14,6 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Middleware sebelum simpan ke database
 userSchema.pre('save', async function () {
     // 1. Cek apakah password dimodifikasi (saat register atau ganti password)
     if (!this.isModified('password')) return;
