@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const Exercise = require('../models/Exercise');
 
-// 1. GET ALL (Mengambil daftar latihan dengan Paging, Sort Nama A-Z, & Populate Efisien)
+// 1. GET ALL: Mengambil daftar latihan dengan Paging, Sort Nama A-Z, & Populate Efisien
 exports.getAllExercises = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
@@ -21,13 +21,13 @@ exports.getAllExercises = async (req, res) => {
             });
         }
 
-        // Jalankan populate langsung di query utama, Mongoose otomatis mengabaikan jika datanya string lama
+        // Ditambahkan options: { strictPopulate: false } agar aman dari amnesia serverless Vercel
         const data = await Exercise.find()
             .sort({ name: 1 })
             .skip(skip)
             .limit(limit)
-            .populate('equipment', 'name')
-            .populate('muscles.muscleId', 'name');
+            .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
+            .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
 
         res.status(200).json({
             currentPage: page,
@@ -42,19 +42,22 @@ exports.getAllExercises = async (req, res) => {
     }
 };
 
-// 2. GET BY ID (Mengambil detail satu latihan berdasarkan ID + Populate Lengkap)
+// 2. GET BY ID: Mengambil detail satu latihan berdasarkan ID + Populate Lengkap
 exports.getExerciseById = async (req, res) => {
     try {
         const id = req.params.id;
 
         // Proteksi jika format ID di URL salah ketik / kurang karakter
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ message: "Format ID latihan tidak valid." });
+            return res.status(400).json({
+                success: false,
+                message: "Format ID latihan tidak valid. Pastikan alamat URL di Postman benar."
+            });
         }
 
         const data = await Exercise.findById(id)
-            .populate('equipment', 'name')
-            .populate('muscles.muscleId', 'name');
+            .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
+            .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
 
         if (!data) {
             return res.status(404).json({ message: "Latihan tidak ditemukan." });
@@ -67,7 +70,7 @@ exports.getExerciseById = async (req, res) => {
     }
 };
 
-// 3. POST (Membuat latihan baru dengan skema relasi)
+// 3. POST: Membuat latihan baru dengan skema relasi
 exports.createExercise = async (req, res) => {
     try {
         if (!req.body || !req.body.name || req.body.name.trim() === "") {
@@ -87,7 +90,7 @@ exports.createExercise = async (req, res) => {
             instructions: req.body.instructions,
             videoUrl: req.body.videoUrl,
             image: req.body.image,
-            user: req.user ? req.user.id : null
+            user: req.user ? req.user.id : null // Menghubungkan latihan dengan user yang membuatnya
         });
 
         const savedExercise = await newExercise.save();
@@ -98,7 +101,7 @@ exports.createExercise = async (req, res) => {
     }
 };
 
-// 4. PUT (Partial Update)
+// 4. PUT: Mengubah data gerakan (Partial Update)
 exports.updateExercise = async (req, res) => {
     try {
         const id = req.params.id;
@@ -120,14 +123,15 @@ exports.updateExercise = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data valid yang diubah." });
         }
 
-        const updated = await Exercise.findByIdAndUpdate(
-            id,
+        // Query pencarian diubah menggunakan findOneAndUpdate agar aman (bisa divalidasi berdasarkan user jika perlu)
+        const updated = await Exercise.findOneAndUpdate(
+            { _id: id },
             { $set: updateFields },
             { new: true, runValidators: true }
-        );
+        ).populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } });
 
         if (!updated) {
-            return res.status(404).json({ message: "ID tidak ditemukan." });
+            return res.status(404).json({ message: "Data latihan tidak ditemukan." });
         }
 
         res.status(200).json(updated);
@@ -137,7 +141,7 @@ exports.updateExercise = async (req, res) => {
     }
 };
 
-// 5. DELETE (Menghapus latihan berdasarkan ID)
+// 5. DELETE: Menghapus gerakan latihan berdasarkan ID
 exports.deleteExercise = async (req, res) => {
     try {
         const id = req.params.id;
@@ -146,13 +150,13 @@ exports.deleteExercise = async (req, res) => {
             return res.status(400).json({ message: "Format ID latihan tidak valid." });
         }
 
-        const deleted = await Exercise.findByIdAndDelete(id);
+        const deleted = await Exercise.findOneAndDelete({ _id: id });
 
         if (!deleted) {
-            return res.status(404).json({ message: "Data tidak ditemukan." });
+            return res.status(404).json({ message: "Data latihan tidak ditemukan." });
         }
 
-        res.status(200).json({ message: `Latihan berhasil dihapus.` });
+        res.status(200).json({ message: `Latihan '${deleted.name}' berhasil dihapus.` });
     } catch (error) {
         console.error("DEBUG DELETE ERROR:", error);
         res.status(500).json({ message: "Terjadi kesalahan server saat menghapus.", error: error.message });
