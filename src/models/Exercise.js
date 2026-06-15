@@ -1,34 +1,40 @@
 const mongoose = require('mongoose');
 
-const WorkoutLogSchema = new mongoose.Schema({
+const ExerciseSchema = new mongoose.Schema({
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
+    muscles: [{
+        muscleId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Muscle',
+            required: true
+        }
+    }],
+    equipment: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Equipment',
+        required: true
+    },
+    instructions: {
+        type: String,
+        default: ""
+    },
+    videoUrl: {
+        type: String,
+        default: ""
+    },
+    image: {
+        type: String,
+        default: ""
+    },
     user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
-        required: true
-    },
-    workoutName: {
-        type: String,
-        default: 'Custom Workout'
-    },
-    duration: {
-        type: Number,
-        default: 0
-    },
-    isCompleted: {
-        type: Boolean,
-        default: false
-    },
-    exercises: [{
-        exerciseId: {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Exercise', 
-            required: true
-        },
-        sets: [{
-            reps: { type: Number, required: true },
-            weight: { type: Number, default: 0 }
-        }]
-    }]
+        default: null // Null jika ini gerakan bawaan sistem (global)
+    }
 }, { timestamps: true });
 
-module.exports = mongoose.model('WorkoutLog', WorkoutLogSchema);
+module.exports = mongoose.models.Exercise || mongoose.model('Exercise', ExerciseSchema);
