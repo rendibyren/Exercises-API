@@ -2,6 +2,7 @@ const express = require('express');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const path = require('path');
+const cors = require('cors'); // <-- 1. IMPORT CORS DI SINI
 
 // 1. Konfigurasi dotenv paling atas
 dotenv.config();
@@ -15,7 +16,14 @@ const muscleRoutes = require('./routes/muscleRoutes');
 
 const app = express();
 
-// 2. Middleware Dasar
+// 2. Middleware Dasar & CORS
+// Buka pintu gerbang agar Frontend React (localhost) bisa masuk
+app.use(cors({
+    origin: '*', // Mengizinkan semua domain mengakses API ini
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 app.use('/images', express.static('public/uploads'));
 
