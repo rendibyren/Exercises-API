@@ -1,23 +1,15 @@
 const mongoose = require('mongoose');
 const Exercise = require('../models/Exercise');
 
-// 1. GET ALL: Mengambil latihan global DAN kustom milik user yang sedang login
+// 1. GET ALL: Mengambil seluruh daftar latihan dari library global murni
 exports.getAllExercises = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = 10;
         const skip = (page - 1) * limit;
 
-        // KUNCI MULTI-USER: Filter gabungan data global (null) + data privat milik user ini
-        const queryFilter = {
-            $or: [
-                { user: null },
-                { user: req.user.id }
-            ]
-        };
-
-        // Hitung total data berdasarkan filter gabungan agar angka paging akurat
-        const totalData = await Exercise.countDocuments(queryFilter);
+        // Hitung total data langsung dari seluruh isi koleksi global
+        const totalData = await Exercise.countDocuments();
         const totalPages = Math.ceil(totalData / limit);
 
         if (page > totalPages && totalData > 0) {
@@ -30,8 +22,8 @@ exports.getAllExercises = async (req, res) => {
             });
         }
 
-        // Ambil data dengan filter gabungan
-        const data = await Exercise.find(queryFilter)
+        // Ambil data murni tanpa filter kepemilikan user
+        const data = await Exercise.find()
             .sort({ name: 1 })
             .skip(skip)
             .limit(limit)
@@ -51,7 +43,7 @@ exports.getAllExercises = async (req, res) => {
     }
 };
 
-// 2. GET BY ID: Mengambil detail satu latihan (Pastikan latihan tersebut berstatus global atau milik user tersebut)
+// 2. GET BY ID: Detail gerakan murni berdasarkan ID dokumen
 exports.getExerciseById = async (req, res) => {
     try {
         const id = req.params.id;
@@ -63,19 +55,12 @@ exports.getExerciseById = async (req, res) => {
             });
         }
 
-        // Ambil data dengan proteksi kepemilikan rute
-        const data = await Exercise.findOne({
-            _id: id,
-            $or: [
-                { user: null },
-                { user: req.user.id }
-            ]
-        })
+        const data = await Exercise.findById(id)
             .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
             .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
 
         if (!data) {
-            return res.status(404).json({ message: "Latihan tidak ditemukan atau Anda tidak memiliki hak akses." });
+            return res.status(404).json({ message: "Latihan tidak ditemukan." });
         }
 
         res.status(200).json(data);
@@ -85,7 +70,7 @@ exports.getExerciseById = async (req, res) => {
     }
 };
 
-// 3. POST: Membuat latihan baru yang otomatis mengunci ID user pembuatnya
+// 3. POST: Suntik data latihan baru ke library pusat
 exports.createExercise = async (req, res) => {
     try {
         if (!req.body || !req.body.name || req.body.name.trim() === "") {
@@ -103,9 +88,8 @@ exports.createExercise = async (req, res) => {
             muscles: req.body.muscles,
             equipment: req.body.equipment,
             instructions: req.body.instructions,
-            videoUrl: req.body.videoUrl,
-            image: req.body.image,
-            user: req.user ? req.user.id : null // Mengunci kepemilikan hanya untuk user ini
+            videoUrl: req.body.videoUrl
+            // Property user dan image dilepas murni
         });
 
         const savedExercise = await newExercise.save();
@@ -116,7 +100,7 @@ exports.createExercise = async (req, res) => {
     }
 };
 
-// 4. PUT: Mengubah data gerakan (Hanya bisa mengubah gerakan kustom miliknya sendiri)
+// 4. PUT: Update data latihan global berdasarkan ID target
 exports.updateExercise = async (req, res) => {
     try {
         const id = req.params.id;
@@ -126,7 +110,8 @@ exports.updateExercise = async (req, res) => {
         }
 
         const updateFields = {};
-        const allowedFields = ['name', 'muscles', 'equipment', 'instructions', 'videoUrl', 'image'];
+        // Field 'image' dikeluarkan dari gerbang allowedFields
+        const allowedFields = ['name', 'muscles', 'equipment', 'instructions', 'videoUrl'];
 
         allowedFields.forEach(field => {
             if (req.body[field] !== undefined) {
@@ -138,15 +123,15 @@ exports.updateExercise = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data valid yang diubah." });
         }
 
-        // SISTEM PROTEKSI: Tambahkan 'user: req.user.id' agar tidak bisa edit data global (null) atau milik orang lain
+        // Eksekusi update langsung murni menggunakan _id dokumen saja
         const updated = await Exercise.findOneAndUpdate(
-            { _id: id, user: req.user.id },
+            { _id: id },
             { $set: updateFields },
             { new: true, runValidators: true }
         ).populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } });
 
         if (!updated) {
-            return res.status(403).json({ message: "Akses ditolak. Anda tidak diperbolehkan mengubah latihan bawaan sistem atau milik pengguna lain." });
+            return res.status(404).json({ message: "Data latihan tidak ditemukan." });
         }
 
         res.status(200).json(updated);
@@ -156,7 +141,7 @@ exports.updateExercise = async (req, res) => {
     }
 };
 
-// 5. DELETE: Menghapus gerakan latihan (Hanya bisa menghapus gerakan miliknya sendiri)
+// 5. DELETE: Hapus gerakan dari library pusat
 exports.deleteExercise = async (req, res) => {
     try {
         const id = req.params.id;
@@ -165,14 +150,14 @@ exports.deleteExercise = async (req, res) => {
             return res.status(400).json({ message: "Format ID latihan tidak valid." });
         }
 
-        // SISTEM PROTEKSI: Tambahkan 'user: req.user.id' agar tidak bisa asal hapus data global (null) via Postman
-        const deleted = await Exercise.findOneAndDelete({ _id: id, user: req.user.id });
+        // Hapus langsung murni menggunakan _id dokumen saja
+        const deleted = await Exercise.findOneAndDelete({ _id: id });
 
         if (!deleted) {
-            return res.status(403).json({ message: "Akses ditolak. Anda tidak memiliki otoritas untuk menghapus latihan ini." });
+            return res.status(404).json({ message: "Data latihan tidak ditemukan." });
         }
 
-        res.status(200).json({ message: `Latihan '${deleted.name}' berhasil dihapus.` });
+        res.status(200).json({ message: `Latihan '${deleted.name}' berhasil dihapus dari library global.` });
     } catch (error) {
         console.error("DEBUG DELETE ERROR:", error);
         res.status(500).json({ message: "Terjadi kesalahan server saat menghapus.", error: error.message });

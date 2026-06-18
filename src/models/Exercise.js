@@ -25,16 +25,8 @@ const ExerciseSchema = new mongoose.Schema({
     videoUrl: {
         type: String,
         default: ""
-    },
-    image: {
-        type: String,
-        default: ""
-    },
-    user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        default: null // Null jika ini gerakan bawaan sistem (global)
     }
+    // === FIELD user & image SUDAH DIHAPUS TOTAL DI SINI ===
 }, { timestamps: true });
 
 module.exports = mongoose.models.Exercise || mongoose.model('Exercise', ExerciseSchema);
