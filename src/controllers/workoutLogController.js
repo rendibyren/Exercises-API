@@ -4,7 +4,8 @@ const WorkoutLog = require('../models/WorkoutLog');
 // 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
     try {
-        const { workoutName, duration, exercises } = req.body;
+        // TAMBAHAN: Tangkap routineId dari body
+        const { routineId, workoutName, duration, exercises } = req.body;
 
         if (!exercises || !Array.isArray(exercises) || exercises.length === 0) {
             return res.status(400).json({ message: "Log latihan harus berisi minimal satu gerakan." });
@@ -18,13 +19,15 @@ exports.createLog = async (req, res) => {
                 exerciseId: item.exerciseId,
                 sets: item.sets ? item.sets.map(set => ({
                     reps: parseInt(set.reps) || 0,
-                    weight: parseFloat(set.weight) || 0
+                    weight: parseFloat(set.weight) || 0,
+                    isCompleted: set.isCompleted || false
                 })) : []
             };
         });
 
         const newLog = new WorkoutLog({
             user: req.user.id,
+            routineId: routineId || null, // <-- TAMBAHAN: Simpan referensi Routine jika ada
             workoutName: workoutName || "Custom Workout",
             duration: duration || 0,
             exercises: formattedExercises
@@ -41,14 +44,15 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL: Ambil Semua Riwayat + Tarik Data Master Otomatis
+// 2. GET ALL: Ambil Semua Riwayat + Tarik Data Master Otomatis (Dengan Pesan Kustom Jika Kosong)
 exports.getAllLogs = async (req, res) => {
     try {
         const logs = await WorkoutLog.find({ user: req.user.id })
+            .populate('routineId', 'routineName') // <-- TAMBAHAN: Tarik nama template routine
             .populate({
                 path: 'exercises.exerciseId',
                 select: 'name instructions videoUrl image',
-                options: { strictPopulate: false }, // Melonggarkan validasi path berlapis di Vercel
+                options: { strictPopulate: false },
                 populate: [
                     { path: 'equipment', select: 'name', options: { strictPopulate: false } },
                     { path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } }
@@ -56,6 +60,16 @@ exports.getAllLogs = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
+        // LOGIKA KONDISI: Jika user belum pernah log latihan/data kosong
+        if (!logs || logs.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "Kamu belum memiliki riwayat latihan. Yuk, mulai sesi latihan pertamamu!",
+                data: []
+            });
+        }
+
+        // Jika data ada, langsung kembalikan array log
         res.status(200).json(logs);
     } catch (error) {
         console.error("ERROR GET LOG:", error);
@@ -67,10 +81,11 @@ exports.getAllLogs = async (req, res) => {
 exports.getLogById = async (req, res) => {
     try {
         const log = await WorkoutLog.findOne({ _id: req.params.id, user: req.user.id })
+            .populate('routineId', 'routineName') // <-- TAMBAHAN: Tarik nama template routine
             .populate({
                 path: 'exercises.exerciseId',
                 select: 'name instructions videoUrl image',
-                options: { strictPopulate: false }, // Mengunci keamanan populasi bersarang
+                options: { strictPopulate: false },
                 populate: [
                     { path: 'equipment', select: 'name', options: { strictPopulate: false } },
                     { path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } }
@@ -95,12 +110,14 @@ exports.completeWorkoutLog = async (req, res) => {
             { _id: req.params.id, user: req.user.id },
             { $set: { isCompleted: true } },
             { new: true }
-        ).populate({
-            path: 'exercises.exerciseId',
-            select: 'name',
-            options: { strictPopulate: false },
-            populate: { path: 'equipment', select: 'name', options: { strictPopulate: false } }
-        });
+        )
+            .populate('routineId', 'routineName')
+            .populate({
+                path: 'exercises.exerciseId',
+                select: 'name',
+                options: { strictPopulate: false },
+                populate: { path: 'equipment', select: 'name', options: { strictPopulate: false } }
+            });
 
         if (!updated) {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan." });
@@ -117,7 +134,8 @@ exports.completeWorkoutLog = async (req, res) => {
 exports.updateLog = async (req, res) => {
     try {
         const updateFields = {};
-        const allowedFields = ['workoutName', 'duration', 'exercises'];
+        // TAMBAHAN: Izinkan routineId dan isCompleted untuk di-update via endpoint ini
+        const allowedFields = ['routineId', 'workoutName', 'duration', 'isCompleted', 'exercises'];
 
         allowedFields.forEach(field => {
             if (req.body[field] !== undefined) {
@@ -130,7 +148,8 @@ exports.updateLog = async (req, res) => {
                 exerciseId: item.exerciseId,
                 sets: item.sets ? item.sets.map(set => ({
                     reps: parseInt(set.reps) || 0,
-                    weight: parseFloat(set.weight) || 0
+                    weight: parseFloat(set.weight) || 0,
+                    isCompleted: set.isCompleted || false
                 })) : []
             }));
         }
@@ -139,11 +158,13 @@ exports.updateLog = async (req, res) => {
             { _id: req.params.id, user: req.user.id },
             { $set: updateFields },
             { new: true, runValidators: true }
-        ).populate({
-            path: 'exercises.exerciseId',
-            select: 'name',
-            options: { strictPopulate: false }
-        });
+        )
+            .populate('routineId', 'routineName')
+            .populate({
+                path: 'exercises.exerciseId',
+                select: 'name',
+                options: { strictPopulate: false }
+            });
 
         if (!updated) {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan." });
