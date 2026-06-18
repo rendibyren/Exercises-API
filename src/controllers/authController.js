@@ -1,18 +1,19 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const mongoose = require('mongoose'); // Tambah import mongoose untuk validasi ObjectId
+const mongoose = require('mongoose'); // Import mongoose untuk validasi ObjectId
 
 // 1. REGISTER
 exports.register = async (req, res) => {
     try {
-        const { username, password } = req.body;
+        // Ekstrak properti 'name' dari request body frontend
+        const { name, username, password } = req.body;
 
-        if (!username || !password) {
-            return res.status(400).json({ message: "Username dan password wajib diisi." });
+        if (!name || !username || !password) {
+            return res.status(400).json({ message: "Nama lengkap, username, dan password wajib diisi." });
         }
 
-        const user = new User({ username, password });
+        const user = new User({ name, username, password });
         await user.save();
 
         res.status(201).json({ message: "User berhasil didaftarkan!" });
@@ -61,6 +62,7 @@ exports.login = async (req, res) => {
             token,
             user: {
                 id: user._id,
+                name: user.name, // Kembalikan data nama agar bisa disimpan langsung di local storage frontend
                 username: user.username
             }
         });

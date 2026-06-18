@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
+    // Tambahkan field name untuk menampung nama lengkap user kustom
+    name: {
+        type: String,
+        required: true,
+        trim: true
+    },
     username: {
         type: String,
         required: true,
@@ -12,7 +18,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true
     }
-});
+}, { timestamps: true }); // Mengaktifkan createdAt & updatedAt otomatis untuk Joined Date
 
 userSchema.pre('save', async function () {
     // 1. Cek apakah password dimodifikasi (saat register atau ganti password)

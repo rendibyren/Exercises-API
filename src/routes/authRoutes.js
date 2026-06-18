@@ -10,7 +10,7 @@ router.post('/login', authController.login);
 // 2. Endpoint Privat (Butuh Bearer Token)
 router.get('/profile', protect, authController.getProfile);
 
-// Endpoint Baru untuk Select All & Select By ID
+// Endpoint Terbuka untuk Otoritas Admin / Statistik Komparasi
 router.get('/', protect, authController.getAllUsers);      // GET /api/auth
 router.get('/:id', protect, authController.getUserById);  // GET /api/auth/:id
 
