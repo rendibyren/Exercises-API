@@ -17,23 +17,37 @@ exports.createRoutine = async (req, res) => {
     }
 };
 
-// 2. GET ALL
+// 2. GET ALL (SUNTIK NESTED POPULATE)
 exports.getAllRoutines = async (req, res) => {
     try {
-        // Menggunakan populate agar detail dari id exercise (nama, jenis alat, otot) ikut ditarik
+        // Menggunakan Deep Populate agar objek equipment dan muscles di dalam exerciseId ikut terbongkar menjadi nama teks
         const data = await Routine.find()
-            .populate('exercises.exerciseId')
+            .populate({
+                path: 'exercises.exerciseId',
+                populate: [
+                    { path: 'equipment', select: 'name' },
+                    { path: 'muscles', select: 'name' }
+                ]
+            })
             .sort({ routineName: 1 });
+
         res.status(200).json(data);
     } catch (err) {
         res.status(500).json({ message: "Gagal mengambil data routine.", error: err.message });
     }
 };
 
-// 3. GET BY ID
+// 3. GET BY ID (SUNTIK NESTED POPULATE)
 exports.getRoutineById = async (req, res) => {
     try {
-        const data = await Routine.findById(req.params.id).populate('exercises.exerciseId');
+        const data = await Routine.findById(req.params.id).populate({
+            path: 'exercises.exerciseId',
+            populate: [
+                { path: 'equipment', select: 'name' },
+                { path: 'muscles', select: 'name' }
+            ]
+        });
+
         if (!data) return res.status(404).json({ message: "Routine tidak ditemukan." });
         res.status(200).json(data);
     } catch (error) {
@@ -41,7 +55,7 @@ exports.getRoutineById = async (req, res) => {
     }
 };
 
-// 4. UPDATE (PUT - Partial Update)
+// 4. UPDATE (PUT - Partial Update & SUNTIK NESTED POPULATE)
 exports.updateRoutine = async (req, res) => {
     try {
         const id = req.params.id;
@@ -68,7 +82,13 @@ exports.updateRoutine = async (req, res) => {
             id,
             { $set: updateFields },
             { new: true, runValidators: true }
-        ).populate('exercises.exerciseId');
+        ).populate({
+            path: 'exercises.exerciseId',
+            populate: [
+                { path: 'equipment', select: 'name' },
+                { path: 'muscles', select: 'name' }
+            ]
+        });
 
         if (!updated) return res.status(404).json({ message: "ID routine tidak ditemukan." });
         res.status(200).json(updated);
