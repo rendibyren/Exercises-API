@@ -1,14 +1,23 @@
 const mongoose = require('mongoose');
 const Exercise = require('../models/Exercise');
 
-// 1. GET ALL: Mengambil daftar latihan dengan Paging, Sort Nama A-Z, & Populate Efisien
+// 1. GET ALL: Mengambil latihan global DAN kustom milik user yang sedang login
 exports.getAllExercises = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = 10;
         const skip = (page - 1) * limit;
 
-        const totalData = await Exercise.countDocuments();
+        // KUNCI MULTI-USER: Filter gabungan data global (null) + data privat milik user ini
+        const queryFilter = {
+            $or: [
+                { user: null },
+                { user: req.user.id }
+            ]
+        };
+
+        // Hitung total data berdasarkan filter gabungan agar angka paging akurat
+        const totalData = await Exercise.countDocuments(queryFilter);
         const totalPages = Math.ceil(totalData / limit);
 
         if (page > totalPages && totalData > 0) {
@@ -21,8 +30,8 @@ exports.getAllExercises = async (req, res) => {
             });
         }
 
-        // Ditambahkan options: { strictPopulate: false } agar aman dari amnesia serverless Vercel
-        const data = await Exercise.find()
+        // Ambil data dengan filter gabungan
+        const data = await Exercise.find(queryFilter)
             .sort({ name: 1 })
             .skip(skip)
             .limit(limit)
@@ -42,12 +51,11 @@ exports.getAllExercises = async (req, res) => {
     }
 };
 
-// 2. GET BY ID: Mengambil detail satu latihan berdasarkan ID + Populate Lengkap
+// 2. GET BY ID: Mengambil detail satu latihan (Pastikan latihan tersebut berstatus global atau milik user tersebut)
 exports.getExerciseById = async (req, res) => {
     try {
         const id = req.params.id;
 
-        // Proteksi jika format ID di URL salah ketik / kurang karakter
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({
                 success: false,
@@ -55,12 +63,19 @@ exports.getExerciseById = async (req, res) => {
             });
         }
 
-        const data = await Exercise.findById(id)
+        // Ambil data dengan proteksi kepemilikan rute
+        const data = await Exercise.findOne({
+            _id: id,
+            $or: [
+                { user: null },
+                { user: req.user.id }
+            ]
+        })
             .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
             .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
 
         if (!data) {
-            return res.status(404).json({ message: "Latihan tidak ditemukan." });
+            return res.status(404).json({ message: "Latihan tidak ditemukan atau Anda tidak memiliki hak akses." });
         }
 
         res.status(200).json(data);
@@ -70,7 +85,7 @@ exports.getExerciseById = async (req, res) => {
     }
 };
 
-// 3. POST: Membuat latihan baru dengan skema relasi
+// 3. POST: Membuat latihan baru yang otomatis mengunci ID user pembuatnya
 exports.createExercise = async (req, res) => {
     try {
         if (!req.body || !req.body.name || req.body.name.trim() === "") {
@@ -90,7 +105,7 @@ exports.createExercise = async (req, res) => {
             instructions: req.body.instructions,
             videoUrl: req.body.videoUrl,
             image: req.body.image,
-            user: req.user ? req.user.id : null // Menghubungkan latihan dengan user yang membuatnya
+            user: req.user ? req.user.id : null // Mengunci kepemilikan hanya untuk user ini
         });
 
         const savedExercise = await newExercise.save();
@@ -101,7 +116,7 @@ exports.createExercise = async (req, res) => {
     }
 };
 
-// 4. PUT: Mengubah data gerakan (Partial Update)
+// 4. PUT: Mengubah data gerakan (Hanya bisa mengubah gerakan kustom miliknya sendiri)
 exports.updateExercise = async (req, res) => {
     try {
         const id = req.params.id;
@@ -123,15 +138,15 @@ exports.updateExercise = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data valid yang diubah." });
         }
 
-        // Query pencarian diubah menggunakan findOneAndUpdate agar aman (bisa divalidasi berdasarkan user jika perlu)
+        // SISTEM PROTEKSI: Tambahkan 'user: req.user.id' agar tidak bisa edit data global (null) atau milik orang lain
         const updated = await Exercise.findOneAndUpdate(
-            { _id: id },
+            { _id: id, user: req.user.id },
             { $set: updateFields },
             { new: true, runValidators: true }
         ).populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } });
 
         if (!updated) {
-            return res.status(404).json({ message: "Data latihan tidak ditemukan." });
+            return res.status(403).json({ message: "Akses ditolak. Anda tidak diperbolehkan mengubah latihan bawaan sistem atau milik pengguna lain." });
         }
 
         res.status(200).json(updated);
@@ -141,7 +156,7 @@ exports.updateExercise = async (req, res) => {
     }
 };
 
-// 5. DELETE: Menghapus gerakan latihan berdasarkan ID
+// 5. DELETE: Menghapus gerakan latihan (Hanya bisa menghapus gerakan miliknya sendiri)
 exports.deleteExercise = async (req, res) => {
     try {
         const id = req.params.id;
@@ -150,10 +165,11 @@ exports.deleteExercise = async (req, res) => {
             return res.status(400).json({ message: "Format ID latihan tidak valid." });
         }
 
-        const deleted = await Exercise.findOneAndDelete({ _id: id });
+        // SISTEM PROTEKSI: Tambahkan 'user: req.user.id' agar tidak bisa asal hapus data global (null) via Postman
+        const deleted = await Exercise.findOneAndDelete({ _id: id, user: req.user.id });
 
         if (!deleted) {
-            return res.status(404).json({ message: "Data latihan tidak ditemukan." });
+            return res.status(403).json({ message: "Akses ditolak. Anda tidak memiliki otoritas untuk menghapus latihan ini." });
         }
 
         res.status(200).json({ message: `Latihan '${deleted.name}' berhasil dihapus.` });
