@@ -1,9 +1,21 @@
 const mongoose = require('mongoose');
 const Exercise = require('../models/Exercise');
 
-// 1. GET ALL: Mengambil semua latihan dengan Populate Nama Alat & Otot
+// 1. GET ALL: Mengambil seluruh daftar latihan dari library global
 exports.getAllExercises = async (req, res) => {
     try {
+        // BYPASS PAGINATION FIX: Jika frontend tidak mengirimkan query ?page=,
+        // kembalikan SEMUA data langsung agar fitur search di frontend bisa membaca seluruh library.
+        if (!req.query.page) {
+            const data = await Exercise.find()
+                .sort({ name: 1 })
+                .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
+                .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
+
+            return res.status(200).json(data);
+        }
+
+        // Jika ada query ?page=, jalankan fitur pembatas halaman (Paging) seperti biasa
         const page = parseInt(req.query.page) || 1;
         const limit = 10;
         const skip = (page - 1) * limit;
@@ -68,9 +80,27 @@ exports.getExerciseById = async (req, res) => {
     }
 };
 
-// 3. POST: Membuat latihan baru + LANGSUNG POPULATE NAMA UNTUK RESPONS FRONTEND
+// 3. POST: Membuat latihan baru (Mendukung Single Object ATAU Banyak Data/Array Sekaligus)
 exports.createExercise = async (req, res) => {
     try {
+        // KUNCI COCOK: Jika input berupa Array (Bulk Insert dari Postman)
+        if (Array.isArray(req.body)) {
+            for (const item of req.body) {
+                if (!item.name || item.name.trim() === "") {
+                    return res.status(400).json({ message: "Ada nama latihan yang kosong di dalam daftar array." });
+                }
+            }
+
+            const savedExercises = await Exercise.insertMany(req.body);
+
+            const populatedExercises = await Exercise.find({ _id: { $in: savedExercises.map(e => e._id) } })
+                .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
+                .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
+
+            return res.status(201).json(populatedExercises);
+        }
+
+        // Jika input berupa Objek Tunggal biasa
         if (!req.body || !req.body.name || req.body.name.trim() === "") {
             return res.status(400).json({ message: "Nama latihan wajib diisi." });
         }
@@ -89,15 +119,12 @@ exports.createExercise = async (req, res) => {
             videoUrl: req.body.videoUrl
         });
 
-        // Simpan data mentah ke MongoDB Atlas
         const savedExercise = await newExercise.save();
 
-        // KUNCI UTAMA: Paksa dokumen yang baru disimpan untuk langsung menarik nama objek referensinya
         const populatedExercise = await Exercise.findById(savedExercise._id)
             .populate({ path: 'equipment', select: 'name', options: { strictPopulate: false } })
             .populate({ path: 'muscles.muscleId', select: 'name', options: { strictPopulate: false } });
 
-        // Kembalikan respons yang sudah rapi lengkap dengan nama objek
         res.status(201).json(populatedExercise);
     } catch (error) {
         console.error("DEBUG POST ERROR:", error);
@@ -127,7 +154,6 @@ exports.updateExercise = async (req, res) => {
             return res.status(400).json({ message: "Tidak ada data valid yang diubah." });
         }
 
-        // KUNCI DI SINI: Kita gabungkan populate equipment DAN muscles setelah proses pencarian update selesai
         const updated = await Exercise.findOneAndUpdate(
             { _id: id },
             { $set: updateFields },
