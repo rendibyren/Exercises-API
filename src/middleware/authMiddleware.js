@@ -3,15 +3,17 @@ const jwt = require('jsonwebtoken');
 const protect = (req, res, next) => {
     let token;
 
-    // Tambahkan log ini untuk intip apa yang dikirim Postman
+    // Log untuk intip apa yang dikirim Postman / Frontend
     console.log("Header Auth:", req.headers.authorization);
 
     if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
         try {
             token = req.headers.authorization.split(' ')[1];
-            console.log("Token yang diambil:", token); // Log token hasil split
+            console.log("Token yang diambil:", token);
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+            // Menyimpan hasil decode token (berisi id user) ke objek req.user
             req.user = decoded;
             next();
         } catch (error) {

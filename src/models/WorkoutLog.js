@@ -1,8 +1,12 @@
 const mongoose = require('mongoose');
 
 const workoutLogSchema = new mongoose.Schema({
-    // Referensi ke pengguna (aktifkan kalau fitur login/auth sudah jalan)
-    // user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    // === KUNCI PERBAIKAN: Aktifkan field user agar diakui oleh Mongoose ===
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
 
     // 1. KUNCI RELASI: Referensi ke Template Routine (Bisa null kalau latihan bebas)
     routineId: {
@@ -11,26 +15,26 @@ const workoutLogSchema = new mongoose.Schema({
         default: null
     },
 
-    // 2. Nama Sesi Latihan Aktual (Biasanya menyalin nama Routine, tapi user bisa ubah misal: "Push Day (Lagi Capek)")
+    // 2. Nama Sesi Latihan Aktual
     workoutName: {
         type: String,
         required: true,
         default: 'Active Workout'
     },
 
-    // 3. Durasi nyata saat stopwatch berjalan (dalam detik/menit)
+    // 3. Durasi nyata saat stopwatch berjalan (dalam detik)
     duration: {
         type: Number,
         default: 0
     },
 
-    // 4. Status apakah latihan ini diselesaikan atau dibatalkan di tengah jalan
+    // 4. Status apakah latihan ini diselesaikan
     isCompleted: {
         type: Boolean,
         default: false
     },
 
-    // 5. KENYATAAN LATIHAN: Di sini kita simpan beban dan repetisi ASLI yang diangkat hari itu
+    // 5. KENYATAAN LATIHAN: Menyimpan beban dan repetisi ASLI
     exercises: [
         {
             exerciseId: {
@@ -41,8 +45,8 @@ const workoutLogSchema = new mongoose.Schema({
             sets: [
                 {
                     reps: { type: Number, default: 0 },
-                    weight: { type: Number, default: 0 }, // Beban aktual (Lbs/Kg)
-                    isCompleted: { type: Boolean, default: false } // Apakah set ini dicentang hijau
+                    weight: { type: Number, default: 0 },
+                    isCompleted: { type: Boolean, default: false }
                 }
             ]
         }
