@@ -4,7 +4,6 @@ const WorkoutLog = require('../models/WorkoutLog');
 // 1. POST: Simpan Log Latihan Baru
 exports.createLog = async (req, res) => {
     try {
-        // TAMBAHAN: Tangkap routineId dari body
         const { routineId, workoutName, duration, exercises } = req.body;
 
         if (!exercises || !Array.isArray(exercises) || exercises.length === 0) {
@@ -25,9 +24,10 @@ exports.createLog = async (req, res) => {
             };
         });
 
+        // AMAN: Menggunakan fallback _id atau id dari middleware protect
         const newLog = new WorkoutLog({
-            user: req.user.id,
-            routineId: routineId || null, // <-- TAMBAHAN: Simpan referensi Routine jika ada
+            user: req.user._id || req.user.id,
+            routineId: routineId || null,
             workoutName: workoutName || "Custom Workout",
             duration: duration || 0,
             exercises: formattedExercises
@@ -44,11 +44,12 @@ exports.createLog = async (req, res) => {
     }
 };
 
-// 2. GET ALL: Ambil Semua Riwayat + Tarik Data Master Otomatis (Dengan Pesan Kustom Jika Kosong)
+// 2. GET ALL: Ambil Semua Riwayat Berdasarkan User Logged In
 exports.getAllLogs = async (req, res) => {
     try {
-        const logs = await WorkoutLog.find({ user: req.user.id })
-            .populate('routineId', 'routineName') // <-- TAMBAHAN: Tarik nama template routine
+        // AMAN: Menggunakan fallback untuk filter find()
+        const logs = await WorkoutLog.find({ user: req.user._id || req.user.id })
+            .populate('routineId', 'routineName')
             .populate({
                 path: 'exercises.exerciseId',
                 select: 'name instructions videoUrl image',
@@ -60,7 +61,6 @@ exports.getAllLogs = async (req, res) => {
             })
             .sort({ createdAt: -1 });
 
-        // LOGIKA KONDISI: Jika user belum pernah log latihan/data kosong
         if (!logs || logs.length === 0) {
             return res.status(200).json({
                 success: true,
@@ -69,7 +69,6 @@ exports.getAllLogs = async (req, res) => {
             });
         }
 
-        // Jika data ada, langsung kembalikan array log
         res.status(200).json(logs);
     } catch (error) {
         console.error("ERROR GET LOG:", error);
@@ -77,11 +76,12 @@ exports.getAllLogs = async (req, res) => {
     }
 };
 
-// 3. GET BY ID: Mengambil satu detail log berdasarkan ID
+// 3. GET BY ID
 exports.getLogById = async (req, res) => {
     try {
-        const log = await WorkoutLog.findOne({ _id: req.params.id, user: req.user.id })
-            .populate('routineId', 'routineName') // <-- TAMBAHAN: Tarik nama template routine
+        // AMAN: Menggunakan fallback untuk findOne
+        const log = await WorkoutLog.findOne({ _id: req.params.id, user: req.user._id || req.user.id })
+            .populate('routineId', 'routineName')
             .populate({
                 path: 'exercises.exerciseId',
                 select: 'name instructions videoUrl image',
@@ -103,11 +103,12 @@ exports.getLogById = async (req, res) => {
     }
 };
 
-// 4. PUT KHUSUS: Mengubah status isCompleted menjadi True (User Klik "Finish Workout")
+// 4. PUT KHUSUS: Selesaikan Workout Log
 exports.completeWorkoutLog = async (req, res) => {
     try {
+        // AMAN: Menggunakan fallback untuk findOneAndUpdate
         const updated = await WorkoutLog.findOneAndUpdate(
-            { _id: req.params.id, user: req.user.id },
+            { _id: req.params.id, user: req.user._id || req.user.id },
             { $set: { isCompleted: true } },
             { new: true }
         )
@@ -130,11 +131,10 @@ exports.completeWorkoutLog = async (req, res) => {
     }
 };
 
-// 5. PUT UMUM: Update isi nama, durasi, atau array set latihan
+// 5. PUT UMUM: Update Log
 exports.updateLog = async (req, res) => {
     try {
         const updateFields = {};
-        // TAMBAHAN: Izinkan routineId dan isCompleted untuk di-update via endpoint ini
         const allowedFields = ['routineId', 'workoutName', 'duration', 'isCompleted', 'exercises'];
 
         allowedFields.forEach(field => {
@@ -154,9 +154,10 @@ exports.updateLog = async (req, res) => {
             }));
         }
 
+        // AMAN: Menggunakan fallback untuk findOneAndUpdate
         const updated = await WorkoutLog.findOneAndUpdate(
-            { _id: req.params.id, user: req.user.id },
-            { $set: updateFields },
+            { _id: req.params.id, user: req.user._id || req.user.id },
+            { $set: { updateFields } },
             { new: true, runValidators: true }
         )
             .populate('routineId', 'routineName')
@@ -180,7 +181,8 @@ exports.updateLog = async (req, res) => {
 // 6. DELETE: Menghapus Riwayat Latihan
 exports.deleteLog = async (req, res) => {
     try {
-        const deleted = await WorkoutLog.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+        // AMAN: Menggunakan fallback untuk findOneAndDelete
+        const deleted = await WorkoutLog.findOneAndDelete({ _id: req.params.id, user: req.user._id || req.user.id });
         if (!deleted) {
             return res.status(404).json({ message: "Riwayat latihan tidak ditemukan." });
         }
