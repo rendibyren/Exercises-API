@@ -14,7 +14,7 @@ exports.createEquipment = async (req, res) => {
     }
 };
 
-// 2. GET ALL: Ambil Semua Daftar Alat
+// 2. GET ALL
 exports.getAllEquipments = async (req, res) => {
     try {
         const data = await Equipment.find().sort({ name: 1 });

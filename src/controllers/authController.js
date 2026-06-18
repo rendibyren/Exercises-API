@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose'); // Tambah import mongoose untuk validasi ObjectId
 
 // 1. REGISTER
 exports.register = async (req, res) => {
@@ -66,5 +67,64 @@ exports.login = async (req, res) => {
     } catch (error) {
         console.error("DEBUG LOGIN ERROR:", error);
         res.status(500).json({ message: "Terjadi kesalahan server saat login.", error: error.message });
+    }
+};
+
+// 3. GET PROFILE (Milik user yang sedang login)
+exports.getProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ message: "User tidak ditemukan." });
+        }
+
+        res.status(200).json(user);
+    } catch (error) {
+        console.error("DEBUG GET PROFILE ERROR:", error);
+        res.status(500).json({
+            message: "Terjadi kesalahan server saat mengambil data profil.",
+            error: error.message
+        });
+    }
+};
+
+// 4. SELECT ALL: Mengambil semua daftar pengguna di aplikasi
+exports.getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find().select('-password').sort({ createdAt: -1 });
+        res.status(200).json(users);
+    } catch (error) {
+        console.error("DEBUG SELECT ALL USERS ERROR:", error);
+        res.status(500).json({
+            message: "Terjadi kesalahan server saat mengambil semua user.",
+            error: error.message
+        });
+    }
+};
+
+// 5. SELECT BY ID: Mengambil detail satu user spesifik berdasarkan ID
+exports.getUserById = async (req, res) => {
+    try {
+        const id = req.params.id;
+
+        // Validasi format ID MongoDB sebelum menembak database
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ message: "Format ID user tidak valid." });
+        }
+
+        const user = await User.findById(id).select('-password');
+
+        if (!user) {
+            return res.status(404).json({ message: "User tidak ditemukan." });
+        }
+
+        res.status(200).json(user);
+    } catch (error) {
+        console.error("DEBUG SELECT USER BY ID ERROR:", error);
+        res.status(500).json({
+            message: "Terjadi kesalahan server saat mengambil data user berdasarkan ID.",
+            error: error.message
+        });
     }
 };
